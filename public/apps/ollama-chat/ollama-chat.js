@@ -172,7 +172,7 @@
       document.title = I18n.t('title.suffix');
     }
     // subject 相關側鍵只在有開啟對話時顯示（.side-tool 預設 flex，顯示要給明確值）
-    ['setting-prompts', 'setting-rename', 'setting-download', 'setting-delete'].forEach(function (id) {
+    ['setting-prompts', 'setting-download'].forEach(function (id) {
       document.getElementById(id).style.display = open ? 'flex' : 'none';
     });
     promptPath.textContent = open ? (state.project + '／' + state.subject) : '';
@@ -203,6 +203,12 @@
           '<i class="material-icons">chat_bubble_outline</i>' +
           '<span class="subj-name">' + _.escape(s.name) + '</span>' +
           '<span class="subj-meta">' + (s.messageCount || 0) + '</span>' +
+          // more_vert 展開該列的 改名／刪除（動作對象＝這一列，不必先開啟該 subject）
+          '<span class="subj-actions">' +
+          '<i class="material-icons subj-act subj-act-edit" title="' + _.escape(I18n.t('tool.rename')) + '">edit</i>' +
+          '<i class="material-icons subj-act subj-act-del" title="' + _.escape(I18n.t('tool.delete')) + '">delete</i>' +
+          '</span>' +
+          '<i class="material-icons subj-more" title="' + _.escape(I18n.t('tool.subjActions')) + '">more_vert</i>' +
           '</li>';
       }).join('');
       return '<div class="proj' + (state.collapsed[p.name] ? ' collapsed' : '') + '" data-project="' + _.escape(p.name) + '">' +
@@ -484,15 +490,19 @@
     M.Modal.getInstance(document.getElementById('new-modal')).open();
   }
 
-  function openRenameModal() {
-    if (!state.subject) return;
-    if (state.streaming) {
+  // 改名對象（樹上任一列，不限目前開啟的 subject）
+  var renameTarget = null;   // { project, name }
+
+  function openRenameModal(project, name) {
+    // 只有「目標＝正在串流的那組對話」才需要擋（改名會讓存檔落到舊路徑）
+    if (state.streaming && project === state.project && name === state.subject) {
       M.toast({ html: I18n.t('toast.busy'), classes: 'orange' });
       return;
     }
+    renameTarget = { project: project, name: name };
     setModalMode('rename');
-    document.getElementById('new-project').value = state.project;
-    document.getElementById('new-subject').value = state.subject;
+    document.getElementById('new-project').value = project;
+    document.getElementById('new-subject').value = name;
     M.updateTextFields();
     M.Modal.getInstance(document.getElementById('new-modal')).open();
   }
@@ -527,20 +537,24 @@
   // 改名／搬 project：名稱即路徑（fs.rename），目標已存在由後端 409 擋下、不覆蓋
   function renameFromModal(project, subject) {
     var modal = M.Modal.getInstance(document.getElementById('new-modal'));
-    if (project === state.project && subject === state.subject) {
+    var src = renameTarget;
+    if (!src || (project === src.project && subject === src.name)) {
       modal.close();
       return;
     }
-    L.renameSubject(state.project, state.subject, project, subject).then(function (d) {
+    L.renameSubject(src.project, src.name, project, subject).then(function (d) {
       var label = d.project + '／' + d.name;
-      state.project = d.project;
-      state.subject = d.name;
-      try {
-        history.replaceState({ project: d.project, subject: d.name }, '',
-          '?project=' + encodeURIComponent(d.project) + '&subject=' + encodeURIComponent(d.name));
-      } catch (e) {}
+      // 改到的是目前開啟的對話 → 同步 state 與 URL；其他列只需更新樹
+      if (state.subject && src.project === state.project && src.name === state.subject) {
+        state.project = d.project;
+        state.subject = d.name;
+        try {
+          history.replaceState({ project: d.project, subject: d.name }, '',
+            '?project=' + encodeURIComponent(d.project) + '&subject=' + encodeURIComponent(d.name));
+        } catch (e) {}
+        updateChrome();
+      }
       modal.close();
-      updateChrome();
       M.toast({ html: I18n.t('toast.renamed', { n: label }), classes: 'teal' });
       return refreshTree();
     }).catch(function (err) {
@@ -554,17 +568,18 @@
 
   /* ---------- 刪除 / 匯出 ---------- */
 
-  function deleteCurrent() {
-    if (!state.subject) return;
-    if (state.streaming) {
+  // 刪除樹上任一列的 subject（刪到目前開啟的那組才需要收畫面）
+  function deleteSubjectRow(project, name) {
+    var isOpen = (project === state.project && name === state.subject);
+    if (state.streaming && isOpen) {
       M.toast({ html: I18n.t('toast.busy'), classes: 'orange' });
       return;
     }
-    var label = state.project + '／' + state.subject;
+    var label = project + '／' + name;
     if (!confirm(I18n.t('confirm.delete', { n: label }))) return;
-    L.deleteSubject(state.project, state.subject).then(function () {
+    L.deleteSubject(project, name).then(function () {
       M.toast({ html: I18n.t('toast.deleted', { n: label }), classes: 'teal' });
-      closeSubject();
+      if (isOpen) closeSubject();
       return refreshTree();
     }).catch(function (err) {
       M.toast({ html: I18n.t('toast.deleteFail', { m: err.message }), classes: 'red' });
@@ -605,6 +620,27 @@
     $(document).on('click', '#tree .subjects li', function () {
       openSubject($(this).attr('data-project'), $(this).attr('data-name'));
       if (window.innerWidth <= 800) document.body.classList.add('tree-closed');
+    });
+
+    // subject 列的動作：more_vert 展開（一次只展一列），edit / delete 對該列動作
+    $(document).on('click', '#tree .subj-more', function (e) {
+      e.stopPropagation();
+      var li = $(this).closest('li');
+      var wasExpanded = li.hasClass('expanded');
+      $('#tree .subjects li.expanded').removeClass('expanded');
+      li.toggleClass('expanded', !wasExpanded);
+    });
+    $(document).on('click', '#tree .subj-act-edit', function (e) {
+      e.stopPropagation();
+      var li = $(this).closest('li');
+      openRenameModal(li.attr('data-project'), li.attr('data-name'));
+      li.removeClass('expanded');
+    });
+    $(document).on('click', '#tree .subj-act-del', function (e) {
+      e.stopPropagation();
+      var li = $(this).closest('li');
+      deleteSubjectRow(li.attr('data-project'), li.attr('data-name'));
+      li.removeClass('expanded');
     });
 
     // prompt 清單
@@ -661,9 +697,7 @@
       if (inst) inst.open();
     });
     document.getElementById('setting-new').addEventListener('click', openNewModal);
-    document.getElementById('setting-rename').addEventListener('click', openRenameModal);
     document.getElementById('setting-download').addEventListener('click', exportCurrent);
-    document.getElementById('setting-delete').addEventListener('click', deleteCurrent);
     document.getElementById('setting-mode').addEventListener('click', function () {
       applyTheme(state.theme === 'dark' ? 'light' : 'dark');
     });

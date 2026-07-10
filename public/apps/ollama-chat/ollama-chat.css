@@ -200,6 +200,54 @@ body.tree-closed #tree-pane {
   color: var(--accent);
 }
 
+/* 列尾 more_vert：hover（或已展開）才現身；觸控裝置一律顯示 */
+.subjects li .subj-more {
+  font-size: 18px;
+  flex: 0 0 auto;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity .12s ease;
+}
+
+.subjects li:hover .subj-more,
+.subjects li.expanded .subj-more {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .subjects li .subj-more { opacity: 1; }
+}
+
+/* 展開後的 改名／刪除；展開時讓位（藏訊息數） */
+.subjects li .subj-actions {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.subjects li.expanded .subj-actions {
+  display: flex;
+}
+
+.subjects li.expanded .subj-meta {
+  display: none;
+}
+
+.subj-actions .subj-act {
+  font-size: 17px;
+  cursor: pointer;
+  padding: 2px;
+}
+
+.subj-actions .subj-act:hover {
+  color: var(--accent);
+}
+
+.subj-actions .subj-act-del:hover {
+  color: #ff6e6e;    /* 刪除＝警示語彙 */
+}
+
 .subjects li.active {
   background: rgba(127, 127, 127, 0.14);
   font-weight: 600;

@@ -28,6 +28,7 @@ I18n.register('zh-Hant', {
   'tool.lang': '語言',
   'tool.copyCode': '複製程式碼',
   'tool.clearInput': '清除輸入',
+  'tool.subjActions': '更多動作（改名／刪除）',
   'toast.lang': '已切換為 {name}',
   'toast.copied': '已複製程式碼',
   'toast.copyFail': '複製失敗（需要 localhost 或 HTTPS）',

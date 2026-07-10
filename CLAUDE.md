@@ -57,9 +57,11 @@ npm install && node app.js          # → http://localhost:3000/apps/ollama-chat
   防閃爍開機腳本同時 toggle `dark-mode`/`light-mode` class 驅動 `materialize-dark.css`（§5.1）。
 - **i18n**：`i18n.js` 引擎 + `locales/*.js`，`data-i18n` 屬性，預設 `zh-Hant`。對話內容是 **data，永不翻譯**。
 - **side-tool**：`#setting-menu`（左欄對話庫開合，`.active`＝開）/ `#setting-prompts`（prompt 清單 sidenav，開檔才顯示）/
-  `#setting-new`（新對話 modal）/ `#setting-rename`（改名／搬 project，同一 modal 的 rename 模式，開檔才顯示）/
-  `#setting-download`（匯出 .md，開檔才顯示）/
-  `#setting-delete`（刪除，開檔才顯示、hover 轉紅）/ `#setting-mode` / `#setting-lang`。
+  `#setting-new`（新對話 modal）/ `#setting-download`（匯出 .md，開檔才顯示）/ `#setting-mode` / `#setting-lang`。
+- **subject 列內動作（改名／刪除）**：左欄每列尾端 `more_vert`（hover 現身、觸控恆顯）展開
+  `edit`／`delete` 兩鍵（一次只展一列、`stopPropagation` 不觸發開啟）——**動作對象＝該列**，
+  不必先開啟該 subject；改名走與「新對話」共用 modal 的 rename 模式（`renameTarget` 記對象），
+  改到／刪到目前開啟中的那組才同步 state／URL 或收畫面；串流中僅擋「目標＝開啟中對話」。
 - **popstate 防護**：modal 的 `<a href="#!">` hash 變化也會觸發 popstate——handler 先比對
   `?project/&subject` 與目前 state，相同就忽略（否則改名後會拿舊名重載 → 404）。
 - **複製件登記**（共用件改版時靠這份清單同步）：`materialize-dark.css` ←家族 repo、
