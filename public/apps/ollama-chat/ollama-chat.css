@@ -491,7 +491,7 @@ body.is-empty .empty-state {
   flex: 0 0 auto;
   background: var(--surface);
   border-top: 1px solid var(--border);
-  padding: 10px 16px 14px;
+  padding: 22px 16px 14px;   /* 上緣留白給浮動 label（浮起時往上移 ~14px），不與邊線擠 */
 }
 
 .input-row {
@@ -514,6 +514,11 @@ body.is-empty .empty-state {
   max-height: 220px;
   overflow-y: auto;
   line-height: 1.6;
+  scrollbar-width: none;               /* 藏捲動軸（Firefox）；超過 max-height 仍可滾 */
+}
+
+.input-row textarea.materialize-textarea::-webkit-scrollbar {
+  display: none;                       /* 藏捲動軸（WebKit） */
 }
 
 #send-btn {
