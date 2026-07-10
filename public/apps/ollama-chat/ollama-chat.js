@@ -23,6 +23,7 @@
   var chatList = document.getElementById('chat-list');
   var inputEl = document.getElementById('chat-text');
   var sendBtn = document.getElementById('send-btn');
+  var clearBtn = document.getElementById('clear-btn');
   var treeEl = document.getElementById('tree');
   var modelSelect = document.getElementById('model-select');
   var crumbProject = document.getElementById('crumb-project');
@@ -308,6 +309,11 @@
 
   /* ---------- 送出 / 串流 ---------- */
 
+  // 清除鈕只在輸入框有內容時顯示（.style.display 給明確值，家族 §4.7 顯示坑）
+  function updateClearBtn() {
+    clearBtn.style.display = inputEl.value ? 'flex' : 'none';
+  }
+
   function setSendBtn(streaming) {
     sendBtn.classList.toggle('stop', streaming);
     sendBtn.querySelector('i').textContent = streaming ? 'stop' : 'send';
@@ -328,6 +334,7 @@
     ensureSubject(text);
     inputEl.value = '';
     M.textareaAutoResize(inputEl);
+    updateClearBtn();
     state.chat.model = state.model;
     state.chat.messages.push(L.userMessage(text));
     renderMessages();
@@ -613,9 +620,20 @@
     // Materialize 1.0 對動態情境的自動繫結不可靠，這裡自己掛，行為與其原生一致）
     var inputLabel = document.querySelector('label[for="chat-text"]');
     inputEl.addEventListener('focus', function () { inputLabel.classList.add('active'); });
-    inputEl.addEventListener('input', function () { inputLabel.classList.add('active'); });
+    inputEl.addEventListener('input', function () {
+      inputLabel.classList.add('active');
+      updateClearBtn();
+    });
     inputEl.addEventListener('blur', function () {
       if (!inputEl.value.trim()) inputLabel.classList.remove('active');
+    });
+
+    // 清除輸入：清空、收回高度、保持焦點（label 因 focus 續浮）
+    clearBtn.addEventListener('click', function () {
+      inputEl.value = '';
+      M.textareaAutoResize(inputEl);
+      updateClearBtn();
+      inputEl.focus();
     });
 
     // 輸入列：Enter 送出、Shift+Enter 換行；IME 組字中（isComposing）不觸發

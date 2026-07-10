@@ -27,6 +27,7 @@ I18n.register('ja', {
   'tool.mode': 'ライト / ダーク切替',
   'tool.lang': '言語',
   'tool.copyCode': 'コードをコピー',
+  'tool.clearInput': '入力をクリア',
   'toast.lang': '{name} に切り替えました',
   'toast.copied': 'コードをコピーしました',
   'toast.copyFail': 'コピーに失敗しました（localhost または HTTPS が必要）',

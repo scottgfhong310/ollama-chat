@@ -27,6 +27,7 @@ I18n.register('en', {
   'tool.mode': 'Toggle light / dark',
   'tool.lang': 'Language',
   'tool.copyCode': 'Copy code',
+  'tool.clearInput': 'Clear input',
   'toast.lang': 'Switched to {name}',
   'toast.copied': 'Code copied',
   'toast.copyFail': 'Copy failed (requires localhost or HTTPS)',

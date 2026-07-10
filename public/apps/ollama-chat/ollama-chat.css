@@ -510,6 +510,7 @@ body.is-empty .empty-state {
 }
 
 .input-row textarea.materialize-textarea {
+  display: block;            /* 去掉 inline baseline 空隙，讓 flex-end 的鈕底對齊底線 */
   margin: 0;
   max-height: 220px;
   overflow-y: auto;
@@ -523,6 +524,35 @@ body.is-empty .empty-state {
 
 #send-btn {
   flex: 0 0 auto;
+}
+
+/* 清除輸入鈕：有內容才顯示（JS 切 flex/none），hover 轉紅（警示語彙） */
+#clear-btn {
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  margin: 0;
+  padding: 0;
+  border: none;              /* 裸 <button> 的 UA 預設外框拿掉，只留圖示 */
+  cursor: pointer;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  background: transparent;   /* 蓋掉 Materialize 對裸 <button> 的 teal 互動底（§5.1 gotcha） */
+}
+
+#clear-btn:hover,
+#clear-btn:focus,
+#clear-btn:active {
+  color: #ff6e6e;
+  background: transparent;
+}
+
+#clear-btn i.material-icons {
+  font-size: 20px;
+  line-height: 1;
 }
 
 #send-btn.stop {
