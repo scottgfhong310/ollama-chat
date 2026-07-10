@@ -9,6 +9,8 @@
 
   <!-- App icon（相對路徑：獨立版與 InProgress 鏡像同路徑可用） -->
   <link rel="icon" href="./icons/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/svg+xml" href="./icons/ollama-icon.svg" media="(prefers-color-scheme: dark)" />
+  <link rel="icon" type="image/svg+xml" href="./icons/ollama-icon-light.svg" media="(prefers-color-scheme: light)" />
   <link rel="icon" type="image/svg+xml" href="./icons/ollama-icon.svg" />
   <link rel="icon" type="image/png" sizes="32x32" href="./icons/icon-32.png" />
   <link rel="icon" type="image/png" sizes="16x16" href="./icons/icon-16.png" />
@@ -81,7 +83,7 @@
 
     <footer class="chat-input">
       <div class="input-row">
-        <img class="input-app-icon" src="./icons/ollama-icon.svg" alt="" aria-hidden="true" />
+        <span class="input-app-icon" aria-hidden="true"></span>
         <!-- Materialize 原生 .input-field + 浮動 label（§5.7）；深色由 materialize-dark.css 處理 -->
         <div class="input-field">
           <textarea id="chat-text" class="materialize-textarea" rows="1"></textarea>
