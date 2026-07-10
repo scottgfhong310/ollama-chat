@@ -550,6 +550,16 @@ body.is-empty .empty-state {
   gap: 12px;
 }
 
+/* 輸入列前的 App icon（SVG 自帶圓角底；flex-end 底部與底線對齊，比照送出鈕） */
+.input-row .input-app-icon {
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  margin: 0 0 2px;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
 /* Materialize .input-field 只調間距／寬度（§5.7：不動其視覺語言） */
 .input-row .input-field {
   flex: 1 1 auto;
