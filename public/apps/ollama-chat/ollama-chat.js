@@ -124,11 +124,11 @@
     wrap.id = 'msg-' + index;
     var bubble = document.createElement('div');
     if (m.role === 'assistant') {
-      bubble.className = 'bubble md';
+      bubble.className = 'bubble md card-panel';   // Materialize card 外觀，深色由 materialize-dark.css 接手
       bubble.innerHTML = renderMarkdown(m.content);
       addCopyButtons(bubble);
     } else {
-      bubble.className = 'bubble';
+      bubble.className = 'bubble card-panel';
       bubble.textContent = m.content;
     }
     wrap.appendChild(bubble);
@@ -345,7 +345,7 @@
     var pendingWrap = document.createElement('div');
     pendingWrap.className = 'msg assistant streaming';
     var pendingBubble = document.createElement('div');
-    pendingBubble.className = 'bubble md';
+    pendingBubble.className = 'bubble md card-panel';
     pendingBubble.innerHTML = '<span class="thinking-dot"></span>';
     pendingWrap.appendChild(pendingBubble);
     chatList.appendChild(pendingWrap);

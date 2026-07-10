@@ -324,15 +324,19 @@ body.is-empty .empty-state {
   opacity: .8;
 }
 
+/* 訊息外觀走 Materialize card-panel（深色由 materialize-dark.css 接手）；
+   此處只調間距／寬度，不動其視覺語言（§5.7 精神）。 */
+.msg .bubble.card-panel {
+  margin: 0;                 /* card-panel 預設上下 margin 交給 .msg 控 */
+  padding: 12px 16px;        /* 預設 24px 對 chat 太厚 */
+}
+
 .msg.user {
   align-items: flex-end;
 }
 
-.msg.user .bubble {
-  background: var(--user-bubble);
-  border: 1px solid var(--border);
-  border-radius: 14px 14px 4px 14px;
-  padding: 10px 14px;
+.msg.user .bubble.card-panel {
+  background-color: var(--user-bubble);   /* user 訊息以 token 淡染，區別 assistant */
   max-width: 78%;
   white-space: pre-wrap;
   word-break: break-word;
@@ -343,21 +347,22 @@ body.is-empty .empty-state {
   align-items: flex-start;
 }
 
-.msg.assistant .bubble {
-  max-width: 100%;
+.msg.assistant .bubble.card-panel {
+  width: 100%;
+  box-sizing: border-box;
   min-width: 0;
   line-height: 1.7;
   word-break: break-word;
 }
 
-/* prompt 跳轉的短暫高亮 */
+/* prompt 跳轉的短暫高亮（用 outline，不蓋掉 card-panel 自身的 box-shadow） */
 .msg.flash .bubble {
   animation: oc-flash 1.4s ease;
 }
 
 @keyframes oc-flash {
-  0%, 40% { box-shadow: 0 0 0 2px var(--accent); }
-  100% { box-shadow: 0 0 0 2px transparent; }
+  0%, 40% { outline: 2px solid var(--accent); outline-offset: 2px; }
+  100% { outline: 2px solid transparent; outline-offset: 2px; }
 }
 
 /* 等第一個 token 的「思考中」脈動點（點本體在共用 thinking-dot.css，此處只調大小與配色） */
