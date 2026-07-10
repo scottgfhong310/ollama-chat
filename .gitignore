@@ -18,3 +18,7 @@ Thumbs.db
 # 對話內容（個人資料，保留資料夾結構、不追蹤內容）
 /public/upload/ollama-chat/chats/*
 !/public/upload/ollama-chat/chats/.gitkeep
+
+# Prompt 樣板庫（個人資料）與其備份
+/public/upload/ollama-chat/prompts.json
+/public/upload/ollama-chat/.bak/

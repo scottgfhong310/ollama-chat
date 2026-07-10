@@ -35,6 +35,9 @@
  *   OllamaChatLib.saveSubject(project, name, chat) → Promise<{updatedAt}>
  *   OllamaChatLib.renameSubject(project, name, newProject, newName) → Promise<{project,name}>
  *   OllamaChatLib.deleteSubject(project, name)  → Promise<{ok}>
+ *   OllamaChatLib.getPrompts()                  → Promise<Array<{content,ts,title?}>>  樣板庫
+ *   OllamaChatLib.savePrompts(prompts)          → Promise<{count}>  整清單覆寫
+ *   OllamaChatLib.promptTitle(p)                → string  樣板顯示名（title 或內容首行）
  *   OllamaChatLib.exportMarkdown(project, name, chat) → string
  *   OllamaChatLib.downloadText(name, text)      → void        Blob → <a download>
  *   OllamaChatLib.timestamp(date)               → 'yyyyMMddHHmmss'
@@ -53,6 +56,7 @@
   var SUBJECT_API = API_BASE + '/subject';
   var DELETE_API = API_BASE + '/delete';
   var RENAME_API = API_BASE + '/rename';
+  var PROMPTS_API = API_BASE + '/prompts';
 
   /* ---------- 工具 ---------- */
 
@@ -205,6 +209,25 @@
     });
   }
 
+  /* ---------- Prompt 樣板庫（全域單檔，整清單覆寫語意） ---------- */
+
+  function getPrompts() {
+    return jsonApi(bust(PROMPTS_API), { cache: 'no-store' })
+      .then(function (d) { return d.prompts || []; });
+  }
+
+  function savePrompts(prompts) {
+    return postJson(PROMPTS_API, { prompts: prompts });
+  }
+
+  // 樣板顯示名：title 優先，否則取內容首行（截 60 字）
+  function promptTitle(p) {
+    if (p && typeof p.title === 'string' && p.title.trim()) return p.title.trim();
+    var line = String((p && p.content) || '').split('\n')[0].trim();
+    if (line.length > 60) line = line.slice(0, 60) + '…';
+    return line;
+  }
+
   /**
    * 對話串流。
    * opts: { model, messages, signal?, onChunk?(delta, full) }
@@ -329,6 +352,9 @@
     saveSubject: saveSubject,
     renameSubject: renameSubject,
     deleteSubject: deleteSubject,
+    getPrompts: getPrompts,
+    savePrompts: savePrompts,
+    promptTitle: promptTitle,
     exportMarkdown: exportMarkdown,
     downloadText: downloadText,
     timestamp: timestamp,

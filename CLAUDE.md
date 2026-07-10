@@ -16,7 +16,7 @@
 
 ```
 app.js                              # Express 入口：port 3000；/ → 302 /apps/ollama-chat/；dotenv
-routes/ollama-chat.js               # GET /models、POST /chat（串流直通）、GET /tree、GET|POST /subject、POST /rename、POST /delete
+routes/ollama-chat.js               # GET /models、POST /chat（串流直通）、GET /tree、GET|POST /subject、POST /rename、POST /delete、GET|POST /prompts
 public/apps/ollama-chat/            # 前端（服務於 /apps/ollama-chat/）
 ├─ index.html · ollama-chat.css · ollama-chat.js · ollama-chat-lib.js
 ├─ materialize-dark.css             # 家族共用（Materialize 深色；materialize.css 之後載入）
@@ -25,6 +25,7 @@ public/apps/ollama-chat/            # 前端（服務於 /apps/ollama-chat/）
 ├─ i18n.js · locales/{zh-Hant,en,ja}.js
 ├─ icons/                           # App icon（favicon.ico／svg／png 16-512／manifest.json；相對路徑引用）
 public/upload/ollama-chat/chats/    # 對話內容：<project>/<subject>.json（不進版控）；.bak/ 收刪除備份
+public/upload/ollama-chat/prompts.json  # Prompt 樣板庫（全域單檔，不進版控）；備份在 ../.bak/
 .env（.env.example）                # OLLAMA_BASE_URL（預設 http://localhost:11434）、PORT
 ```
 
@@ -58,7 +59,11 @@ npm install && node app.js          # → http://localhost:3000/apps/ollama-chat
   防閃爍開機腳本同時 toggle `dark-mode`/`light-mode` class 驅動 `materialize-dark.css`（§5.1）。
 - **i18n**：`i18n.js` 引擎 + `locales/*.js`，`data-i18n` 屬性，預設 `zh-Hant`。對話內容是 **data，永不翻譯**。
 - **side-tool**：`#setting-menu`（左欄對話庫開合，`.active`＝開）/ `#setting-prompts`（prompt 清單 sidenav，開檔才顯示）/
+  `#setting-templates`（Prompt 樣板庫 sidenav，恆顯示）/
   `#setting-new`（新對話 modal）/ `#setting-download`（匯出 .md，開檔才顯示）/ `#setting-mode` / `#setting-lang`。
+- **Prompt 樣板庫**：另一個儲存面（全域單檔 `prompts.json`，與對話分開）；owner registry 式
+  **整清單覆寫**、覆寫前 `.bak`（§3.5 精神，寫入頻率低）。前端記憶體 state 為真相、
+  存失敗回讀伺服器；點樣板**插入輸入框游標處**（dispatch input 同步 label／清除鈕／高度）。
 - **subject 列內動作（改名／刪除）**：左欄每列尾端 `more_vert`（hover 現身、觸控恆顯）展開
   `edit`／`delete` 兩鍵（一次只展一列、`stopPropagation` 不觸發開啟）——**動作對象＝該列**，
   不必先開啟該 subject；改名走與「新對話」共用 modal 的 rename 模式（`renameTarget` 記對象），

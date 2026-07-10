@@ -113,6 +113,29 @@
     <div id="prompt-list"></div>
   </ul>
 
+  <!-- ===== 右側滑出：Prompt 樣板庫（全域、跨對話；點樣板插入輸入框游標處） ===== -->
+  <ul id="template-nav" class="sidenav" style="width: 340px;">
+    <li>
+      <a class="subheader">
+        <i class="material-icons">bookmarks</i>
+        <span><span data-i18n="tpl.header">Prompt 樣板庫</span><span class="path">/upload/ollama-chat/prompts.json</span></span>
+      </a>
+    </li>
+    <li>
+      <div class="divider"></div>
+    </li>
+    <li>
+      <a href="#!" id="tpl-add">
+        <i class="material-icons">add</i>
+        <span class="tpl-text" data-i18n="tpl.addCurrent">把目前輸入存成樣板</span>
+      </a>
+    </li>
+    <li>
+      <div class="divider"></div>
+    </li>
+    <div id="template-list"></div>
+  </ul>
+
   <!-- ===== 新對話 Modal（Materialize 原生 input-field，深色由 materialize-dark.css 處理） ===== -->
   <div id="new-modal" class="modal">
     <div class="modal-content">
@@ -140,6 +163,9 @@
     </div>
     <div id="setting-prompts" class="side-tool" data-i18n-title="tool.prompts" title="Prompt 清單" style="display:none;">
       <i class="material-icons">toc</i>
+    </div>
+    <div id="setting-templates" class="side-tool" data-i18n-title="tool.templates" title="Prompt 樣板庫">
+      <i class="material-icons">bookmarks</i>
     </div>
     <div id="setting-new" class="side-tool" data-i18n-title="tool.new" title="新對話">
       <i class="material-icons">add_comment</i>

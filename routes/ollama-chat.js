@@ -18,6 +18,10 @@
  *                                     （fs.rename；目標已存在則 409 拒絕，不覆蓋）
  *   POST /api/ollama-chat/delete    → { project, name } 移到 chats/.bak/ 備份（不直接 unlink）
  *
+ * Prompt 樣板庫（全域單檔 prompts.json；owner registry 式整清單覆寫，§3.5 精神）：
+ *   GET  /api/ollama-chat/prompts   → { ok, prompts: [{ content, ts, title? }] }
+ *   POST /api/ollama-chat/prompts   → { prompts: [...] } 整清單覆寫（覆寫前 .bak）
+ *
  * 安全限制：
  *   - 操作目標固定為 public/upload/ollama-chat/chats，不接受任意路徑參數
  *   - project / subject 名稱經 sanitizeName（擋 / \ 空字元、..、開頭 .、" ' < > & ` 與控制字元）
@@ -33,8 +37,13 @@ const { Readable } = require('stream');
 const router = express.Router();
 
 // 對話內容根（與前端對齊；.bak 備份也收在這棵樹下）
-const CHATS_DIR = path.join(__dirname, '..', 'public', 'upload', 'ollama-chat', 'chats');
+const UPLOAD_ROOT = path.join(__dirname, '..', 'public', 'upload', 'ollama-chat');
+const CHATS_DIR = path.join(UPLOAD_ROOT, 'chats');
 const BAK_DIR = path.join(CHATS_DIR, '.bak');
+
+// Prompt 樣板庫：全域單檔（另一個儲存面，與對話分開）；備份收 UPLOAD_ROOT/.bak/
+const PROMPTS_FILE = path.join(UPLOAD_ROOT, 'prompts.json');
+const ROOT_BAK = path.join(UPLOAD_ROOT, '.bak');
 
 // Ollama base URL：讀取時才取值（.env 由 app.js 載入）
 function ollamaBase() {
@@ -297,6 +306,54 @@ router.post('/delete', async (req, res) => {
   } catch (err) {
     if (err.code === 'ENOENT') return res.status(404).json({ ok: false, error: 'Not found' });
     console.error('[ollama-chat] POST /delete failed:', err);
+    return res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+/* ---------- Prompt 樣板庫 ---------- */
+
+// 樣板清單白名單驗證：只收已知欄位，content 必為非空字串；上限防呆
+function cleanPrompts(list) {
+  if (!Array.isArray(list) || list.length > 200) return null;
+  const out = [];
+  for (const p of list) {
+    if (!p || typeof p !== 'object') return null;
+    if (typeof p.content !== 'string' || !p.content.trim()) return null;
+    const item = { content: p.content };
+    if (typeof p.title === 'string' && p.title.trim()) item.title = p.title.trim().slice(0, 80);
+    item.ts = typeof p.ts === 'string' ? p.ts : timestamp();
+    out.push(item);
+  }
+  return out;
+}
+
+// GET /api/ollama-chat/prompts — 讀樣板庫（無檔＝空清單）
+router.get('/prompts', async (req, res) => {
+  try {
+    const j = JSON.parse(await fs.readFile(PROMPTS_FILE, 'utf8'));
+    return res.json({ ok: true, prompts: Array.isArray(j.prompts) ? j.prompts : [] });
+  } catch (err) {
+    if (err.code === 'ENOENT') return res.json({ ok: true, prompts: [] });
+    console.error('[ollama-chat] GET /prompts failed:', err);
+    return res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// POST /api/ollama-chat/prompts — 整清單覆寫（owner registry 式；覆寫前 .bak）
+router.post('/prompts', async (req, res) => {
+  const clean = cleanPrompts((req.body || {}).prompts);
+  if (!clean) return res.status(400).json({ ok: false, error: 'invalid prompts payload' });
+  try {
+    await fs.mkdir(UPLOAD_ROOT, { recursive: true });
+    try {
+      await fs.access(PROMPTS_FILE);
+      await fs.mkdir(ROOT_BAK, { recursive: true });
+      await fs.copyFile(PROMPTS_FILE, path.join(ROOT_BAK, 'prompts-' + timestamp() + '.json.bak'));
+    } catch (e) { /* 首寫尚無檔，免備份 */ }
+    await fs.writeFile(PROMPTS_FILE, JSON.stringify({ prompts: clean }, null, 2) + '\n', 'utf8');
+    return res.json({ ok: true, count: clean.length });
+  } catch (err) {
+    console.error('[ollama-chat] POST /prompts failed:', err);
     return res.status(500).json({ ok: false, error: err.message });
   }
 });

@@ -56,12 +56,19 @@
 （後端 `POST /subject` 本身是 upsert 語意，衝突防護做在建立端）。
 `inbox` 是資料（資料夾名），不隨 UI 語言翻譯。
 
+## 5.5 Prompt 樣板庫：另一個儲存面
+
+「prompt 清單」是**衍生**索引（§1），樣板庫則是**使用者維護的資產**——兩者語意不同，儲存也分開：
+全域單檔 `prompts.json`（跨對話重用，不掛在任何 subject 下）。維護走 §3.5 owner registry 模式：
+前端記憶體 state 為唯一真相、`POST /prompts` **整清單覆寫**、覆寫前 `.bak`（寫入頻率低，不會爆量；
+與 §3 對話存檔「追加型不留 .bak」形成對比——樣板刪除是破壞性的，備份成本又低）。
+樣板無獨立 title 欄（顯示＝內容首行，同 prompt 索引），插入語意＝**輸入框游標處**（不覆蓋已打內容）。
+
 ## 6. v1 刻意不做
 
 - **語法上色（highlight.js）**：先有複製鈕；要加時注意主題同步（github-dark ↔ github）。
 - **system prompt／參數（temperature 等）**：資料格式已預留 `role:'system'`（後端白名單含之），UI 未出。
 - **附檔／多模態**：故省略家族上傳骨架（`routes/upload.js`＋multer，比照 user-admin 先例）；要餵檔案給模型時再補。
-- **prompt 樣板庫**：prompt 清單先做「對話索引」語意；樣板庫屬另一個儲存面，需要時另開面板。
 
 ## 7. 已知限制
 

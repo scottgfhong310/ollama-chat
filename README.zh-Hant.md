@@ -17,6 +17,7 @@ light/dark 主題。輕量 Express 後端（Ollama proxy＋對話存取）。
 - **串流對話**：任何已安裝的 Ollama 模型（模型選單附大小；停止鍵會一路中止到 Ollama 端）。
 - **project / subject 對話庫**：一組對話＝一個 JSON 檔，放在 `chats/<project>/<subject>.json`——純檔案、無資料庫、無 registry 可失同步。
 - **Prompt 索引**：subject 內所有 user 發言列成滑出面板，點一條就捲到那一問一答。
+- **Prompt 樣板庫**：全域跨對話的樣板清單（單檔 `prompts.json`）——把目前輸入存成樣板、點樣板插入輸入框游標處、刪除有備份。
 - **自動命名**：沒開 subject 直接輸入，會以第一句自動命名、存進 `inbox`。
 - **Markdown 回覆**：fenced code 附複製鈕；資料內容永不翻譯、不改寫。
 - **改名／搬移**：側鍵改 subject 標題或搬到別的 project（名稱即路徑；目標已存在則拒絕、不覆蓋）。
@@ -57,6 +58,8 @@ public/upload/ollama-chat/chats/    # 對話內容（不進版控）
 | POST | `/api/ollama-chat/subject` | `{ project, name, chat }`——整檔覆寫存檔 |
 | POST | `/api/ollama-chat/rename` | `{ project, name, newProject, newName }`——改名／搬到別的 project（目標已存在回 409） |
 | POST | `/api/ollama-chat/delete` | `{ project, name }`——檔案移到 `chats/.bak/` 備份 |
+| GET | `/api/ollama-chat/prompts` | 讀樣板庫 → `{ ok, prompts }` |
+| POST | `/api/ollama-chat/prompts` | `{ prompts: [...] }`——整清單覆寫（覆寫前先備份舊檔） |
 
 除成功的 `/chat` 串流（原樣直通 Ollama 的 NDJSON）外，所有端點皆用家族 `{ ok }` 信封。
 
@@ -71,6 +74,15 @@ public/upload/ollama-chat/chats/    # 對話內容（不進版控）
   "messages": [
     { "role": "user",      "content": "…", "ts": "20260711000000" },
     { "role": "assistant", "content": "…", "ts": "20260711000012", "model": "qwen2.5:latest" }
+  ]
+}
+```
+
+```jsonc
+// prompts.json — 全域 prompt 樣板庫
+{
+  "prompts": [
+    { "content": "請把以下內容翻譯成繁體中文：\n\n", "ts": "20260711073309", "title": "選填的顯示名" }
   ]
 }
 ```

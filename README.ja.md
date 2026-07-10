@@ -17,6 +17,7 @@ GitHub Pages には非対応（Node バックエンドが必要）。
 - **ストリーミングチャット**：インストール済みの任意の Ollama モデル（サイズ付きモデル選択；停止ボタンは Ollama 側まで生成を中止）。
 - **project / subject ライブラリ**：1 会話＝1 JSON ファイル（`chats/<project>/<subject>.json`）——プレーンファイルのみ、DB もレジストリも不要。
 - **プロンプト索引**：subject 内のすべてのユーザー発言をスライドインパネルに一覧表示；クリックでそのやり取りへスクロール。
+- **プロンプトのテンプレート**：会話をまたぐグローバルなテンプレート集（単一の `prompts.json`）——現在の入力を保存、クリックで入力欄のカーソル位置に挿入、削除はバックアップ付き。
 - **自動命名**：subject を開かずに入力すると、最初の一文から命名され `inbox` に保存。
 - **Markdown 返信**：fenced code にコピーボタン付き；データ内容は翻訳・改変しない。
 - **名前変更／移動**：サイドレールから subject の改名や別 project への移動（名前＝パス；移動先が既存の場合は拒否、上書きしない）。
@@ -57,6 +58,8 @@ public/upload/ollama-chat/chats/    # 会話データ（コミットしない）
 | POST | `/api/ollama-chat/subject` | `{ project, name, chat }`——ファイル全体を上書き保存 |
 | POST | `/api/ollama-chat/rename` | `{ project, name, newProject, newName }`——名前変更／別 project へ移動（移動先が存在する場合は 409） |
 | POST | `/api/ollama-chat/delete` | `{ project, name }`——ファイルを `chats/.bak/` へ移動 |
+| GET | `/api/ollama-chat/prompts` | テンプレート集を読む → `{ ok, prompts }` |
+| POST | `/api/ollama-chat/prompts` | `{ prompts: [...] }`——リスト全体を上書き（上書き前に旧ファイルをバックアップ） |
 
 成功時の `/chat` ストリーム（Ollama の NDJSON をそのまま通す）を除き、
 すべてのエンドポイントはファミリー共通の `{ ok }` エンベロープを使用します。
@@ -72,6 +75,15 @@ public/upload/ollama-chat/chats/    # 会話データ（コミットしない）
   "messages": [
     { "role": "user",      "content": "…", "ts": "20260711000000" },
     { "role": "assistant", "content": "…", "ts": "20260711000012", "model": "qwen2.5:latest" }
+  ]
+}
+```
+
+```jsonc
+// prompts.json — グローバルなプロンプトテンプレート集
+{
+  "prompts": [
+    { "content": "以下を日本語に翻訳してください：\n\n", "ts": "20260711073309", "title": "任意の表示名" }
   ]
 }
 ```

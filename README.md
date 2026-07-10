@@ -17,6 +17,7 @@ Not compatible with GitHub Pages (requires the Node backend).
 - **Streaming chat** with any locally installed Ollama model (model picker with sizes; stop button aborts generation all the way up to Ollama).
 - **Project / subject library**: every conversation is one JSON file under `chats/<project>/<subject>.json` — plain files, no database, no registry to drift.
 - **Prompt index**: every user prompt in a subject is listed in a slide-in panel; clicking one scrolls to that exchange.
+- **Prompt templates**: a global, cross-conversation template library (single `prompts.json`); save the current input as a template, click a template to insert it at the input cursor, delete with backup.
 - **Auto-naming**: typing without opening a subject creates one named from your first prompt, stored under `inbox`.
 - **Markdown replies** with fenced-code copy buttons; user content is never translated or altered.
 - **Rename / move**: retitle a subject or move it to another project from the side rail (name = path; refuses to overwrite an existing target).
@@ -57,6 +58,8 @@ public/upload/ollama-chat/chats/    # conversations (not committed)
 | POST | `/api/ollama-chat/subject` | `{ project, name, chat }` — write (overwrite) one subject |
 | POST | `/api/ollama-chat/rename` | `{ project, name, newProject, newName }` — rename / move to another project (409 if target exists) |
 | POST | `/api/ollama-chat/delete` | `{ project, name }` — move the file to `chats/.bak/` |
+| GET | `/api/ollama-chat/prompts` | Read the template library → `{ ok, prompts }` |
+| POST | `/api/ollama-chat/prompts` | `{ prompts: [...] }` — overwrite the whole list (backs up the old file first) |
 
 All endpoints use the family `{ ok }` envelope except the successful `/chat` stream,
 which passes Ollama's NDJSON chunks through verbatim.
@@ -72,6 +75,15 @@ which passes Ollama's NDJSON chunks through verbatim.
   "messages": [
     { "role": "user",      "content": "…", "ts": "20260711000000" },
     { "role": "assistant", "content": "…", "ts": "20260711000012", "model": "qwen2.5:latest" }
+  ]
+}
+```
+
+```jsonc
+// prompts.json — global prompt template library
+{
+  "prompts": [
+    { "content": "Translate the following into …\n\n", "ts": "20260711073309", "title": "optional display name" }
   ]
 }
 ```

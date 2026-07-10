@@ -36,6 +36,7 @@
     theme: 'dark',
     models: [],
     model: '',
+    templates: [],   // prompt 樣板庫（全域單檔 prompts.json）
     tree: [],
     project: null,   // 目前開啟的 project（資料夾名）
     subject: null,   // 目前開啟的 subject（檔名去 .json）
@@ -465,6 +466,81 @@
     el.classList.add('flash');
   }
 
+  /* ---------- Prompt 樣板庫（全域、跨對話；點樣板插入輸入框游標處） ---------- */
+
+  var templateList = document.getElementById('template-list');
+
+  function renderTemplates() {
+    if (!state.templates.length) {
+      templateList.innerHTML = '<div class="prompt-empty">' + I18n.t('tpl.empty') + '</div>';
+      return;
+    }
+    templateList.innerHTML = state.templates.map(function (p, i) {
+      return '<li><a href="#!" class="tpl-item" data-i="' + i + '" title="' + _.escape(I18n.t('tpl.insert')) + '">' +
+        '<i class="material-icons">notes</i>' +
+        '<span class="tpl-text">' + _.escape(L.promptTitle(p)) + '</span>' +
+        '<i class="material-icons tpl-del" title="' + _.escape(I18n.t('tpl.delete')) + '">delete</i>' +
+        '</a></li>';
+    }).join('');
+  }
+
+  function loadTemplates() {
+    return L.getPrompts().then(function (prompts) {
+      state.templates = prompts;
+      renderTemplates();
+    }).catch(function (err) {
+      M.toast({ html: I18n.t('toast.tplLoadFail', { m: err.message }), classes: 'red' });
+    });
+  }
+
+  function saveTemplates() {
+    return L.savePrompts(state.templates).catch(function (err) {
+      M.toast({ html: I18n.t('toast.tplSaveFail', { m: err.message }), classes: 'red' });
+      return loadTemplates();   // 存失敗 → 回讀伺服器現況，避免畫面與檔案分歧
+    });
+  }
+
+  // 插入輸入框游標處（無游標則接在尾端），並同步 label／清除鈕／高度
+  function insertTemplate(text) {
+    var start = inputEl.selectionStart != null ? inputEl.selectionStart : inputEl.value.length;
+    var end = inputEl.selectionEnd != null ? inputEl.selectionEnd : start;
+    inputEl.value = inputEl.value.slice(0, start) + text + inputEl.value.slice(end);
+    var pos = start + text.length;
+    inputEl.focus();
+    try { inputEl.setSelectionRange(pos, pos); } catch (e) {}
+    inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+    M.textareaAutoResize(inputEl);
+  }
+
+  function addTemplateFromInput() {
+    var content = inputEl.value;
+    if (!content.trim()) {
+      M.toast({ html: I18n.t('toast.tplEmpty'), classes: 'orange' });
+      return;
+    }
+    var dup = state.templates.some(function (p) { return p.content === content; });
+    if (dup) {
+      M.toast({ html: I18n.t('toast.tplExists'), classes: 'grey' });
+      return;
+    }
+    state.templates.unshift({ content: content, ts: L.timestamp() });
+    renderTemplates();
+    saveTemplates().then(function (d) {
+      if (d) M.toast({ html: I18n.t('toast.tplSaved'), classes: 'teal' });
+    });
+  }
+
+  function deleteTemplate(index) {
+    var p = state.templates[index];
+    if (!p) return;
+    if (!confirm(I18n.t('confirm.tplDelete', { n: L.promptTitle(p) }))) return;
+    state.templates.splice(index, 1);
+    renderTemplates();
+    saveTemplates().then(function (d) {
+      if (d) M.toast({ html: I18n.t('toast.tplDeleted'), classes: 'teal' });
+    });
+  }
+
   /* ---------- 新對話／改名搬移 modal（同一個 modal 兩種模式） ---------- */
 
   var modalMode = 'new';   // 'new' | 'rename'
@@ -603,6 +679,7 @@
   function onLangChanged() {
     renderTree();          // 「尚無對話」訊息隨語系
     renderPromptList();
+    renderTemplates();
     updateChrome();
     setSendBtn(state.streaming);
   }
@@ -641,6 +718,25 @@
       var li = $(this).closest('li');
       deleteSubjectRow(li.attr('data-project'), li.attr('data-name'));
       li.removeClass('expanded');
+    });
+
+    // 樣板庫：插入 / 存目前輸入 / 刪除
+    $(document).on('click', '#template-list a.tpl-item', function (e) {
+      e.preventDefault();
+      var p = state.templates[Number($(this).data('i'))];
+      if (!p) return;
+      var inst = M.Sidenav.getInstance(document.getElementById('template-nav'));
+      if (inst && inst.isOpen) inst.close();
+      insertTemplate(p.content);
+    });
+    $(document).on('click', '#template-list .tpl-del', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      deleteTemplate(Number($(this).closest('a.tpl-item').data('i')));
+    });
+    document.getElementById('tpl-add').addEventListener('click', function (e) {
+      e.preventDefault();
+      addTemplateFromInput();
     });
 
     // prompt 清單
@@ -696,6 +792,10 @@
       var inst = M.Sidenav.getInstance(document.getElementById('prompt-nav'));
       if (inst) inst.open();
     });
+    document.getElementById('setting-templates').addEventListener('click', function () {
+      var inst = M.Sidenav.getInstance(document.getElementById('template-nav'));
+      if (inst) inst.open();
+    });
     document.getElementById('setting-new').addEventListener('click', openNewModal);
     document.getElementById('setting-download').addEventListener('click', exportCurrent);
     document.getElementById('setting-mode').addEventListener('click', function () {
@@ -727,6 +827,11 @@
       onOpenStart: function () { document.body.classList.add('sidenav-open'); },
       onCloseEnd: function () { document.body.classList.remove('sidenav-open'); }
     });
+    M.Sidenav.init(document.getElementById('template-nav'), {
+      edge: 'right',
+      onOpenStart: function () { document.body.classList.add('sidenav-open'); },
+      onCloseEnd: function () { document.body.classList.remove('sidenav-open'); }
+    });
     M.Modal.init(document.getElementById('new-modal'));
     M.FormSelect.init(modelSelect);
 
@@ -753,6 +858,7 @@
     Promise.all([loadModels(), refreshTree()]).then(function () {
       if (p && s) openSubject(p, s, true);
     });
+    loadTemplates();
 
     inputEl.focus();
   });

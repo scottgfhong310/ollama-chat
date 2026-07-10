@@ -687,6 +687,42 @@ body.is-empty .empty-state {
   font-size: .85rem;
 }
 
+/* ===== Prompt 樣板庫（#template-nav；列版型沿用 sidenav li>a） ===== */
+#template-nav .tpl-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: .9rem;
+}
+
+#tpl-add,
+#tpl-add .material-icons {
+  color: var(--accent) !important;   /* 「存成樣板」是本面板的主要動作，用 accent 標示 */
+}
+
+#template-nav .tpl-del {
+  flex: 0 0 auto;
+  margin-left: auto;
+  font-size: 18px;
+  opacity: 0;
+  transition: opacity .12s ease;
+}
+
+#template-nav li:hover .tpl-del,
+#template-nav .tpl-del:focus {
+  opacity: 1;
+}
+
+#template-nav .tpl-del:hover {
+  color: #ff6e6e !important;   /* 蓋掉 .sidenav li>a .material-icons 的 muted !important */
+}
+
+@media (hover: none) {
+  #template-nav .tpl-del { opacity: 1; }
+}
+
 /* ===== 側鍵：刪除為警示鍵（hover 轉紅，比照 side-tool.css 的 #setting-clear） ===== */
 #setting-delete:hover {
   color: #ff6e6e;
