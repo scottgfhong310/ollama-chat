@@ -72,8 +72,11 @@
 
     <footer class="chat-input">
       <div class="input-row">
-        <textarea id="chat-text" class="materialize-textarea" rows="1"
-          data-i18n-placeholder="input.placeholder" placeholder="輸入訊息…（Enter 送出、Shift+Enter 換行）"></textarea>
+        <!-- Materialize 原生 .input-field + 浮動 label（§5.7）；深色由 materialize-dark.css 處理 -->
+        <div class="input-field">
+          <textarea id="chat-text" class="materialize-textarea" rows="1"></textarea>
+          <label for="chat-text" data-i18n="input.placeholder">輸入訊息…（Enter 送出、Shift+Enter 換行）</label>
+        </div>
         <button id="send-btn" class="btn-floating" data-i18n-title="btn.send" title="送出">
           <i class="material-icons">send</i>
         </button>

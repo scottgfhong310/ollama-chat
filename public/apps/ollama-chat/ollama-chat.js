@@ -124,11 +124,11 @@
     wrap.id = 'msg-' + index;
     var bubble = document.createElement('div');
     if (m.role === 'assistant') {
-      bubble.className = 'bubble md card-panel';   // Materialize card 外觀，深色由 materialize-dark.css 接手
+      bubble.className = 'bubble md';
       bubble.innerHTML = renderMarkdown(m.content);
       addCopyButtons(bubble);
     } else {
-      bubble.className = 'bubble card-panel';
+      bubble.className = 'bubble';
       bubble.textContent = m.content;
     }
     wrap.appendChild(bubble);
@@ -345,7 +345,7 @@
     var pendingWrap = document.createElement('div');
     pendingWrap.className = 'msg assistant streaming';
     var pendingBubble = document.createElement('div');
-    pendingBubble.className = 'bubble md card-panel';
+    pendingBubble.className = 'bubble md';
     pendingBubble.innerHTML = '<span class="thinking-dot"></span>';
     pendingWrap.appendChild(pendingBubble);
     chatList.appendChild(pendingWrap);
@@ -607,6 +607,15 @@
       var inst = M.Sidenav.getInstance(document.getElementById('prompt-nav'));
       if (inst && inst.isOpen) inst.close();
       jumpToMessage(idx);
+    });
+
+    // 浮動 label 同步（Materialize 語意：focus／有內容→浮起，blur 且空→回位。
+    // Materialize 1.0 對動態情境的自動繫結不可靠，這裡自己掛，行為與其原生一致）
+    var inputLabel = document.querySelector('label[for="chat-text"]');
+    inputEl.addEventListener('focus', function () { inputLabel.classList.add('active'); });
+    inputEl.addEventListener('input', function () { inputLabel.classList.add('active'); });
+    inputEl.addEventListener('blur', function () {
+      if (!inputEl.value.trim()) inputLabel.classList.remove('active');
     });
 
     // 輸入列：Enter 送出、Shift+Enter 換行；IME 組字中（isComposing）不觸發

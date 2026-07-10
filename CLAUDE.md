@@ -41,8 +41,10 @@ npm install && node app.js          # → http://localhost:3000/apps/ollama-chat
   `promptIndex()`（user 發言 → 索引）、`autoName`/`isSafeName`/`uniqueName`（鏡射後端消毒）、
   `newChat`/`userMessage`/`assistantMessage`、`exportMarkdown`、tree/subject CRUD、
   `timestamp`/`stampFilename`/`formatTs`/`formatSize`/`downloadText`。
-- **訊息外觀走 Materialize `card-panel`**（§5.7 精神：不手刻外框/底色）：深色由 materialize-dark.css
-  接手，app CSS 只調間距／寬度；user 訊息以 `--user-bubble` token 淡染區別。
+- **輸入列走 Materialize `.input-field` ＋浮動 label**（§5.7）：深色由 materialize-dark.css 處理，
+  app CSS 只調間距／寬度。**Materialize 1.0 的 label 自動浮起在動態情境不可靠**——控制器自掛
+  focus／input／blur 三個 listener 同步 `.active`（語意與其原生一致）。訊息氣泡則是本 app 自訂設計
+  （user `--user-bubble` 圓角泡、assistant 無框全寬），非 Materialize 元件。
 - **markdown → HTML 在控制器不在 lib**（DOM 工作）：marked（鎖 `12.0.2`）+ DOMPurify（鎖 `3.1.6`），
   連結一律 `target=_blank rel=noopener`；串流中 120ms 節流全文重繪；完成後補 §4.5 式複製鈕
   （light DOM，可用 Material Icons，不必 inline SVG）。
