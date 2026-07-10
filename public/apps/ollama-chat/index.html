@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="zh-Hant" data-theme="dark" class="dark-mode">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <title>Ollama Chat</title>
+
+  <!-- 防閃爍開機腳本：在 render 前先依 localStorage 設好 data-theme（預設 dark），
+       同時 toggle dark-mode / light-mode class 驅動共用 materialize-dark.css（見家族 §5.1）。 -->
+  <script>
+    (function () {
+      var t = 'dark';
+      try { var s = localStorage.getItem('ollama-chat-theme'); if (s === 'light' || s === 'dark') t = s; } catch (e) {}
+      var r = document.documentElement;
+      r.setAttribute('data-theme', t);
+      r.classList.toggle('dark-mode', t === 'dark');
+      r.classList.toggle('light-mode', t === 'light');
+    })();
+  </script>
+
+  <!-- Materialize 1.0.0 + Material Icons -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css" />
+  <link rel="stylesheet" href="./materialize-dark.css" />
+
+  <link rel="stylesheet" href="./ollama-chat.css" />
+  <link rel="stylesheet" href="./thinking-dot.css" /> <!-- 共用 utility：Claude 風「思考中」脈動點 .thinking-dot -->
+  <link rel="stylesheet" href="./side-tool.css" />
+</head>
+
+<body>
+  <!-- ===== 左欄：對話庫（project → subject 樹；#setting-menu 開合） ===== -->
+  <aside id="tree-pane">
+    <div class="tree-header">
+      <i class="material-icons">folder_open</i>
+      <span>
+        <span data-i18n="tree.header">對話庫</span>
+        <span class="path">/upload/ollama-chat/chats</span>
+      </span>
+    </div>
+    <div id="tree"></div>
+  </aside>
+
+  <!-- ===== 中欄：對話 ===== -->
+  <div class="chat-main">
+    <header class="chat-topbar">
+      <i class="material-icons crumb-icon">forum</i>
+      <div class="crumb">
+        <span id="crumb-project" class="crumb-project"></span>
+        <span id="crumb-sep" class="crumb-sep" style="display:none;">／</span>
+        <strong id="crumb-subject" data-i18n="topbar.none">尚未選擇對話</strong>
+      </div>
+      <div class="model-box">
+        <select id="model-select"></select>
+      </div>
+    </header>
+
+    <div id="chat-scroll">
+      <!-- 空狀態：沒開 subject 時顯示；直接輸入即自動建立 -->
+      <div id="empty-state" class="empty-state">
+        <i class="material-icons">forum</i>
+        <h5 data-i18n="empty.title">開始一段新對話</h5>
+        <div class="hint" data-i18n-html="empty.hint">
+          直接在下方輸入訊息——會自動建立 subject；<br />
+          或從左側對話庫選擇既有對話。
+        </div>
+      </div>
+      <div id="chat-list"></div>
+    </div>
+
+    <footer class="chat-input">
+      <div class="input-row">
+        <textarea id="chat-text" class="materialize-textarea" rows="1"
+          data-i18n-placeholder="input.placeholder" placeholder="輸入訊息…（Enter 送出、Shift+Enter 換行）"></textarea>
+        <button id="send-btn" class="btn-floating" data-i18n-title="btn.send" title="送出">
+          <i class="material-icons">send</i>
+        </button>
+      </div>
+    </footer>
+  </div>
+
+  <!-- ===== 右側滑出：prompt 清單（該 subject 的 user 發言索引；點擊跳到對話中該處） ===== -->
+  <ul id="prompt-nav" class="sidenav" style="width: 340px;">
+    <li>
+      <a class="subheader">
+        <i class="material-icons">toc</i>
+        <span><span data-i18n="prompt.header">Prompt 清單</span><span class="path" id="prompt-path"></span></span>
+      </a>
+    </li>
+    <li>
+      <div class="divider"></div>
+    </li>
+    <div id="prompt-list"></div>
+  </ul>
+
+  <!-- ===== 新對話 Modal（Materialize 原生 input-field，深色由 materialize-dark.css 處理） ===== -->
+  <div id="new-modal" class="modal">
+    <div class="modal-content">
+      <h5 data-i18n="modal.title">新對話</h5>
+      <div class="input-field">
+        <input id="new-project" type="text" list="project-datalist" maxlength="80" />
+        <label for="new-project" data-i18n="modal.project">Project（資料夾）</label>
+        <datalist id="project-datalist"></datalist>
+      </div>
+      <div class="input-field">
+        <input id="new-subject" type="text" maxlength="80" />
+        <label for="new-subject" data-i18n="modal.subject">Subject（主題）</label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <a href="#!" class="modal-close btn-flat" data-i18n="modal.cancel">取消</a>
+      <a href="#!" id="new-create" class="btn-flat" data-i18n="modal.create">建立</a>
+    </div>
+  </div>
+
+  <!-- ===== 右側工具列（flex 容器自動堆疊，見家族 §5.5） ===== -->
+  <div class="side-tools">
+    <div id="setting-menu" class="side-tool" data-i18n-title="tool.menu" title="對話庫">
+      <i class="material-icons">folder_open</i>
+    </div>
+    <div id="setting-prompts" class="side-tool" data-i18n-title="tool.prompts" title="Prompt 清單" style="display:none;">
+      <i class="material-icons">toc</i>
+    </div>
+    <div id="setting-new" class="side-tool" data-i18n-title="tool.new" title="新對話">
+      <i class="material-icons">add_comment</i>
+    </div>
+    <div id="setting-download" class="side-tool" data-i18n-title="tool.download" title="匯出 Markdown" style="display:none;">
+      <i class="material-icons">file_download</i>
+    </div>
+    <div id="setting-delete" class="side-tool" data-i18n-title="tool.delete" title="刪除此對話" style="display:none;">
+      <i class="material-icons">delete</i>
+    </div>
+    <div id="setting-mode" class="side-tool" data-i18n-title="tool.mode" title="切換 light / dark">
+      <i class="material-icons">dark_mode</i>
+    </div>
+    <div id="setting-lang" class="side-tool" data-i18n-title="tool.lang" title="Language">
+      <i class="material-icons">translate</i>
+    </div>
+  </div>
+
+  <!-- 依賴：jQuery / Materialize / Lodash / marked / DOMPurify（皆鎖版本）/ OllamaChatLib -->
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lodash@4.17.21/lodash.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+  <script src="./ollama-chat-lib.js"></script>
+
+  <!-- i18n 引擎 + 語言字典（先引擎再各語系；新增語言＝多一個 locale 檔） -->
+  <script src="./i18n.js"></script>
+  <script src="./locales/zh-Hant.js"></script>
+  <script src="./locales/en.js"></script>
+  <script src="./locales/ja.js"></script>
+
+  <script src="./ollama-chat.js"></script>
+</body>
+
+</html>

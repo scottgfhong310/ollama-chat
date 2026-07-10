@@ -1,0 +1,75 @@
+/* 右側浮動工具列（家族招牌元件）
+ * 〔正統〕版：把按鈕包進 .side-tools flex 容器，由 flex 自動堆疊
+ * （不綁固定 id 數量／順序），顏色以 CSS 變數驅動、隨 light / dark 主題切換。
+ * 見家族 DESIGN_GUIDELINES §5.5。
+ */
+
+:root {
+  --tool-size: 46px;   /* icon 直徑 */
+  --tool-gap: 9px;     /* icon 之間的間距 */
+}
+
+.side-tools {
+  position: fixed;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);   /* 垂直居中於畫面右側 */
+  display: flex;
+  flex-direction: column;
+  gap: var(--tool-gap);
+  z-index: 1002;
+}
+
+.side-tool {
+  width: var(--tool-size);
+  height: var(--tool-size);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  cursor: pointer;
+  color: var(--tool-fg);
+  background: var(--tool-bg);
+  border: 1px solid var(--border);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.22);
+  transition: transform .1s ease, filter .15s ease, background .15s ease, color .15s ease, opacity .15s ease;
+  user-select: none;
+}
+
+.side-tool:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.08);
+}
+
+.side-tool:active {
+  transform: translateY(0);
+}
+
+.side-tool i.material-icons {
+  font-size: 22px;
+  line-height: 1;
+}
+
+/* toggle 開啟狀態以 accent 色標示 */
+.side-tool.active {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* 警示鍵（清空資料夾）hover 轉紅 */
+#setting-clear:hover {
+  color: #ff6e6e;
+}
+
+/* 右側 file-list 開啟時，隱藏整排工具；收起後再淡入 */
+body.sidenav-open .side-tools {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* 列印時隱藏所有工具 */
+@media print {
+  .side-tools {
+    display: none !important;
+  }
+}

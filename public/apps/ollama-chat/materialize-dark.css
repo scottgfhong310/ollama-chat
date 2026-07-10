@@ -1,0 +1,691 @@
+/* =========================================================
+   MaterializeCSS Dark Mode
+   適用：Materialize 1.0.0
+   建議：本檔案放在 materialize.css 之後載入
+   啟用：<html class="dark-mode">
+   ========================================================= */
+
+/* ---------- 1. Theme Tokens ---------- */
+
+:root {
+  --mz-bg: #f5f5f5;
+  --mz-surface: #ffffff;
+  --mz-surface-2: #fafafa;
+  --mz-surface-3: #eeeeee;
+
+  --mz-text: #212121;
+  --mz-text-muted: #616161;
+  --mz-text-disabled: #9e9e9e;
+
+  --mz-border: rgba(0, 0, 0, 0.12);
+  --mz-border-strong: rgba(0, 0, 0, 0.24);
+
+  --mz-primary: #26a69a;
+  --mz-primary-hover: #2bbbad;
+  --mz-primary-text: #ffffff;
+
+  --mz-link: #4db6ac;
+  --mz-focus: #80cbc4;
+
+  --mz-error: #ef5350;
+  --mz-warning: #ffca28;
+  --mz-success: #66bb6a;
+
+  --mz-shadow: rgba(0, 0, 0, 0.45);
+}
+
+/* 手動深色模式：建議加在 html */
+html.dark-mode,
+body.dark-mode,
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --mz-bg: #121212;
+  --mz-surface: #1e1e1e;
+  --mz-surface-2: #242424;
+  --mz-surface-3: #2e2e2e;
+
+  --mz-text: #eeeeee;
+  --mz-text-muted: #bdbdbd;
+  --mz-text-disabled: #757575;
+
+  --mz-border: rgba(255, 255, 255, 0.12);
+  --mz-border-strong: rgba(255, 255, 255, 0.24);
+
+  --mz-primary: #26a69a;
+  --mz-primary-hover: #4db6ac;
+  --mz-primary-text: #ffffff;
+
+  --mz-link: #80cbc4;
+  --mz-focus: #80cbc4;
+
+  --mz-error: #ff6b6b;
+  --mz-warning: #ffd54f;
+  --mz-success: #81c784;
+
+  --mz-shadow: rgba(0, 0, 0, 0.75);
+}
+
+/* 若沒有手動指定 light-mode，跟隨系統深色模式 */
+@media (prefers-color-scheme: dark) {
+  html:not(.light-mode) {
+    color-scheme: dark;
+
+    --mz-bg: #121212;
+    --mz-surface: #1e1e1e;
+    --mz-surface-2: #242424;
+    --mz-surface-3: #2e2e2e;
+
+    --mz-text: #eeeeee;
+    --mz-text-muted: #bdbdbd;
+    --mz-text-disabled: #757575;
+
+    --mz-border: rgba(255, 255, 255, 0.12);
+    --mz-border-strong: rgba(255, 255, 255, 0.24);
+
+    --mz-primary: #26a69a;
+    --mz-primary-hover: #4db6ac;
+    --mz-primary-text: #ffffff;
+
+    --mz-link: #80cbc4;
+    --mz-focus: #80cbc4;
+
+    --mz-error: #ff6b6b;
+    --mz-warning: #ffd54f;
+    --mz-success: #81c784;
+
+    --mz-shadow: rgba(0, 0, 0, 0.75);
+  }
+}
+
+/* ---------- 2. Base ---------- */
+
+html.dark-mode body,
+body.dark-mode,
+html:not(.light-mode) body {
+  background: var(--mz-bg);
+  color: var(--mz-text);
+}
+
+body,
+p,
+span,
+li,
+td,
+th,
+label,
+.input-field label,
+.card,
+.collection,
+.collapsible,
+.modal,
+.dropdown-content {
+  color: var(--mz-text);
+}
+
+a {
+  color: var(--mz-link);
+}
+
+a:hover {
+  color: var(--mz-focus);
+}
+
+/* 常用背景工具 */
+.dark-surface {
+  background: var(--mz-surface) !important;
+  color: var(--mz-text) !important;
+}
+
+.dark-surface-2 {
+  background: var(--mz-surface-2) !important;
+  color: var(--mz-text) !important;
+}
+
+/* ---------- 3. Navbar / Sidenav ---------- */
+/* 官方 Navbar 範例使用 nav、.nav-wrapper、.sidenav、.dropdown-content 等結構。 */
+
+nav,
+nav .nav-wrapper,
+.navbar-fixed nav {
+  background-color: var(--mz-surface-2);
+  color: var(--mz-text);
+}
+
+nav a,
+nav .brand-logo,
+nav ul a,
+nav .sidenav-trigger,
+nav i.material-icons {
+  color: var(--mz-text);
+}
+
+nav ul li.active,
+nav ul li:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.sidenav {
+  background-color: var(--mz-surface);
+}
+
+.sidenav li > a,
+.sidenav li > a > i.material-icons {
+  color: var(--mz-text);
+}
+
+.sidenav li > a:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.sidenav .divider {
+  background-color: var(--mz-border);
+}
+
+/* ---------- 4. Cards ---------- */
+/* Materialize Cards 使用 .card、.card-content、.card-action 等結構。 */
+
+.card,
+.card-panel {
+  background-color: var(--mz-surface);
+  color: var(--mz-text);
+  box-shadow:
+    0 2px 2px 0 var(--mz-shadow),
+    0 3px 1px -2px var(--mz-shadow),
+    0 1px 5px 0 var(--mz-shadow);
+}
+
+.card .card-title,
+.card .card-content,
+.card .card-reveal {
+  color: var(--mz-text);
+}
+
+.card .card-reveal {
+  background-color: var(--mz-surface);
+}
+
+.card .card-action {
+  border-top: 1px solid var(--mz-border);
+  background-color: var(--mz-surface);
+}
+
+.card .card-action a:not(.btn):not(.btn-large):not(.btn-small):not(.btn-large):not(.btn-floating) {
+  color: var(--mz-link);
+}
+
+.card .card-action a:hover {
+  color: var(--mz-focus);
+}
+
+/* ---------- 5. Collections ---------- */
+
+.collection {
+  background-color: var(--mz-surface);
+  border-color: var(--mz-border);
+}
+
+.collection .collection-item {
+  background-color: var(--mz-surface);
+  color: var(--mz-text);
+  border-bottom-color: var(--mz-border);
+}
+
+.collection .collection-item.active {
+  background-color: var(--mz-primary);
+  color: var(--mz-primary-text);
+}
+
+.collection a.collection-item {
+  color: var(--mz-link);
+}
+
+.collection a.collection-item:hover {
+  background-color: var(--mz-surface-2);
+}
+
+/* ---------- 6. Collapsible ---------- */
+
+.collapsible {
+  border-color: var(--mz-border);
+}
+
+.collapsible-header {
+  background-color: var(--mz-surface);
+  color: var(--mz-text);
+  border-bottom-color: var(--mz-border);
+}
+
+.collapsible-body {
+  background-color: var(--mz-surface-2);
+  color: var(--mz-text);
+  border-bottom-color: var(--mz-border);
+}
+
+/* ---------- 7. Forms / Inputs ---------- */
+/* 官方 Forms 分成 Text Inputs、Select、Checkboxes、Radio、Switches、Range 等。 */
+
+input:not([type]),
+input[type=text]:not(.browser-default),
+input[type=password]:not(.browser-default),
+input[type=email]:not(.browser-default),
+input[type=url]:not(.browser-default),
+input[type=time]:not(.browser-default),
+input[type=date]:not(.browser-default),
+input[type=datetime]:not(.browser-default),
+input[type=datetime-local]:not(.browser-default),
+input[type=tel]:not(.browser-default),
+input[type=number]:not(.browser-default),
+input[type=search]:not(.browser-default),
+textarea.materialize-textarea {
+  color: var(--mz-text);
+  border-bottom-color: var(--mz-border-strong);
+}
+
+input:not([type]):focus:not([readonly]),
+input[type=text]:not(.browser-default):focus:not([readonly]),
+input[type=password]:not(.browser-default):focus:not([readonly]),
+input[type=email]:not(.browser-default):focus:not([readonly]),
+input[type=url]:not(.browser-default):focus:not([readonly]),
+input[type=time]:not(.browser-default):focus:not([readonly]),
+input[type=date]:not(.browser-default):focus:not([readonly]),
+input[type=datetime]:not(.browser-default):focus:not([readonly]),
+input[type=datetime-local]:not(.browser-default):focus:not([readonly]),
+input[type=tel]:not(.browser-default):focus:not([readonly]),
+input[type=number]:not(.browser-default):focus:not([readonly]),
+input[type=search]:not(.browser-default):focus:not([readonly]),
+textarea.materialize-textarea:focus:not([readonly]) {
+  border-bottom-color: var(--mz-focus);
+  box-shadow: 0 1px 0 0 var(--mz-focus);
+}
+
+.input-field label {
+  color: var(--mz-text-muted);
+}
+
+.input-field input:focus + label,
+.input-field textarea:focus + label {
+  color: var(--mz-focus) !important;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--mz-text-disabled);
+}
+
+/* browser-default 欄位 */
+input.browser-default,
+textarea.browser-default,
+select.browser-default {
+  background-color: var(--mz-surface-2);
+  color: var(--mz-text);
+  border: 1px solid var(--mz-border);
+}
+
+/* Select */
+.select-wrapper input.select-dropdown {
+  color: var(--mz-text);
+  border-bottom-color: var(--mz-border-strong);
+}
+
+.select-wrapper .caret {
+  fill: var(--mz-text-muted);
+}
+
+.dropdown-content.select-dropdown li span {
+  color: var(--mz-text);
+}
+
+/* Checkbox / Radio */
+[type="checkbox"] + span:not(.lever),
+[type="radio"] + span {
+  color: var(--mz-text);
+}
+
+[type="checkbox"]:checked + span:not(.lever)::before {
+  border-right-color: var(--mz-primary);
+  border-bottom-color: var(--mz-primary);
+}
+
+[type="radio"]:checked + span::after,
+[type="radio"].with-gap:checked + span::after {
+  background-color: var(--mz-primary);
+}
+
+[type="radio"]:checked + span::after,
+[type="radio"].with-gap:checked + span::before,
+[type="radio"].with-gap:checked + span::after {
+  border-color: var(--mz-primary);
+}
+
+/* Switch */
+.switch label {
+  color: var(--mz-text-muted);
+}
+
+.switch label .lever {
+  background-color: var(--mz-surface-3);
+}
+
+.switch label .lever::after {
+  background-color: var(--mz-text-muted);
+}
+
+.switch label input[type=checkbox]:checked + .lever {
+  background-color: rgba(38, 166, 154, 0.45);
+}
+
+.switch label input[type=checkbox]:checked + .lever::after {
+  background-color: var(--mz-primary);
+}
+
+/* Range */
+input[type=range] {
+  border: none;
+}
+
+input[type=range]::-webkit-slider-runnable-track {
+  background: var(--mz-surface-3);
+}
+
+input[type=range]::-webkit-slider-thumb {
+  background: var(--mz-primary);
+}
+
+input[type=range]::-moz-range-track {
+  background: var(--mz-surface-3);
+}
+
+input[type=range]::-moz-range-thumb {
+  background: var(--mz-primary);
+}
+
+/* ---------- 8. Dropdown ---------- */
+
+.dropdown-content {
+  background-color: var(--mz-surface);
+  box-shadow: 0 4px 12px var(--mz-shadow);
+}
+
+.dropdown-content li {
+  color: var(--mz-text);
+}
+
+.dropdown-content li > a,
+.dropdown-content li > span {
+  color: var(--mz-text);
+}
+
+.dropdown-content li:hover,
+.dropdown-content li.active {
+  background-color: var(--mz-surface-2);
+}
+
+.dropdown-content li.divider,
+.divider {
+  background-color: var(--mz-border);
+}
+
+/* ---------- 9. Modal ---------- */
+
+.modal {
+  background-color: var(--mz-surface);
+  color: var(--mz-text);
+}
+
+.modal .modal-content {
+  color: var(--mz-text);
+}
+
+.modal .modal-footer {
+  background-color: var(--mz-surface-2);
+  border-top: 1px solid var(--mz-border);
+}
+
+.modal-overlay {
+  background: #000;
+  opacity: 0.7 !important;
+}
+
+/* ---------- 10. Tabs ---------- */
+
+.tabs {
+  background-color: var(--mz-surface);
+}
+
+.tabs .tab a {
+  color: var(--mz-link);
+}
+
+.tabs .tab a:hover,
+.tabs .tab a.active {
+  color: var(--mz-focus);
+}
+
+.tabs .tab.disabled a,
+.tabs .tab.disabled a:hover {
+  color: var(--mz-text-disabled);
+}
+
+.tabs .indicator {
+  background-color: var(--mz-primary);
+}
+
+.tabs.tabs-transparent {
+  background-color: transparent;
+}
+
+/* ---------- 11. Table ---------- */
+
+table,
+table.striped,
+table.highlight {
+  color: var(--mz-text);
+}
+
+table.striped > tbody > tr:nth-child(odd) {
+  background-color: rgba(255, 255, 255, 0.04);
+}
+
+table.highlight > tbody > tr:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+table.bordered > thead > tr,
+table.bordered > tbody > tr,
+table.bordered > tfoot > tr {
+  border-bottom-color: var(--mz-border);
+}
+
+thead {
+  color: var(--mz-text);
+}
+
+th,
+td {
+  border-color: var(--mz-border);
+}
+
+/* ---------- 12. Buttons ---------- */
+
+.btn,
+.btn-large,
+.btn-small,
+.btn-floating {
+  background-color: var(--mz-primary);
+  color: var(--mz-primary-text);
+}
+
+.btn:hover,
+.btn-large:hover,
+.btn-small:hover,
+.btn-floating:hover {
+  background-color: var(--mz-primary-hover);
+}
+
+.btn-flat {
+  color: var(--mz-link);
+}
+
+.btn-flat:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.btn.disabled,
+.btn-floating.disabled,
+.btn-large.disabled,
+.btn-small.disabled,
+.btn:disabled,
+.btn-floating:disabled,
+.btn-large:disabled,
+.btn-small:disabled,
+.btn[disabled],
+.btn-floating[disabled],
+.btn-large[disabled],
+.btn-small[disabled] {
+  background-color: var(--mz-surface-3) !important;
+  color: var(--mz-text-disabled) !important;
+}
+
+/* ---------- 13. Pagination ---------- */
+
+.pagination li a {
+  color: var(--mz-text);
+}
+
+.pagination li.active {
+  background-color: var(--mz-primary);
+}
+
+.pagination li.active a {
+  color: var(--mz-primary-text);
+}
+
+.pagination li.disabled a {
+  color: var(--mz-text-disabled);
+}
+
+/* ---------- 14. Chips ---------- */
+
+.chip {
+  background-color: var(--mz-surface-3);
+  color: var(--mz-text);
+}
+
+.chip .close {
+  color: var(--mz-text-muted);
+}
+
+.chips {
+  border-bottom-color: var(--mz-border-strong);
+}
+
+.chips.focus {
+  border-bottom-color: var(--mz-focus);
+  box-shadow: 0 1px 0 0 var(--mz-focus);
+}
+
+.chips .input {
+  color: var(--mz-text);
+}
+
+/* ---------- 15. Toast / Tooltip ---------- */
+
+.toast {
+  background-color: var(--mz-surface-3);
+  color: var(--mz-text);
+}
+
+/* 彩色 toast（家族 §7：teal/green/red/orange/grey，皆為飽和深底）文字固定白色。
+ * 否則上面的 color:var(--mz-text) 在淺色模式會是深字、疊在深色 toast 底上低對比。 */
+.toast.teal, .toast.green, .toast.red, .toast.orange, .toast.grey { color: #fff; }
+
+.material-tooltip {
+  background-color: var(--mz-surface-3);
+  color: var(--mz-text);
+}
+
+/* ---------- 16. Datepicker / Timepicker ---------- */
+
+.datepicker-modal,
+.timepicker-modal {
+  background-color: var(--mz-surface);
+  color: var(--mz-text);
+}
+
+.datepicker-container,
+.timepicker-container {
+  background-color: var(--mz-surface);
+}
+
+.datepicker-table td,
+.datepicker-table th {
+  color: var(--mz-text);
+}
+
+.datepicker-table td.is-disabled {
+  color: var(--mz-text-disabled);
+}
+
+.datepicker-date-display,
+.timepicker-digital-display {
+  background-color: var(--mz-primary);
+  color: var(--mz-primary-text);
+}
+
+.datepicker-cancel,
+.datepicker-clear,
+.datepicker-today,
+.datepicker-done,
+.timepicker-close {
+  color: var(--mz-link);
+}
+
+/* ---------- 17. Preloader ---------- */
+
+.progress {
+  background-color: var(--mz-surface-3);
+}
+
+.progress .determinate,
+.progress .indeterminate {
+  background-color: var(--mz-primary);
+}
+
+/* ---------- 18. Search Field in Navbar ---------- */
+
+nav .input-field input[type=search] {
+  background-color: var(--mz-surface);
+  color: var(--mz-text);
+}
+
+nav .input-field input[type=search]:focus {
+  background-color: var(--mz-surface);
+  color: var(--mz-text);
+}
+
+nav .input-field label i,
+nav .input-field i {
+  color: var(--mz-text-muted);
+}
+
+/* ---------- 19. Code / Pre ---------- */
+
+pre,
+code {
+  background-color: var(--mz-surface-2);
+  color: var(--mz-text);
+  border: 1px solid var(--mz-border);
+}
+
+pre {
+  padding: 1rem;
+  overflow: auto;
+}
+
+/* ---------- 20. Selection ---------- */
+
+::selection {
+  background: rgba(128, 203, 196, 0.35);
+  color: var(--mz-text);
+}

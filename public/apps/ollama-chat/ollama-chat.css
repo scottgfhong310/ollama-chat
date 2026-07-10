@@ -1,0 +1,614 @@
+/* ollama-chat — 頁面樣式
+ * 含主題 token（light/dark）與本頁專屬樣式；共用工具列樣式見 side-tool.css，
+ * 載入點 utility 見 thinking-dot.css，Materialize 元件深色見 materialize-dark.css。
+ *
+ * 全版面 chat 版型：左欄對話庫（project→subject 樹）＋中欄對話（topbar / 訊息卷軸 / 輸入列）
+ * ＋右側滑出 prompt 清單（Materialize sidenav）。
+ */
+
+/* ===== 主題變數（light / dark 由 <html data-theme> 切換；家族標準 token） ===== */
+:root,
+[data-theme="dark"] {
+  --bg: #0f1115;
+  --surface: #161a22;
+  --surface-2: #1b2030;
+  --text: #e8eaf0;
+  --muted: #a8b0c0;
+  --border: rgba(255, 255, 255, 0.12);
+  --accent: #90caf9;
+  --card-bg: #0f1115;
+  --tool-bg: #1b2030;
+  --tool-fg: #e8eaf0;
+  --overlay: rgba(10, 14, 22, 0.84);
+  --drop-border: #3a4252;
+  --user-bubble: #223046;          /* user 訊息底（accent 調的深色） */
+}
+
+[data-theme="light"] {
+  --bg: #f6f8fa;
+  --surface: #ffffff;
+  --surface-2: #eef1f5;
+  --text: #1f2328;
+  --muted: #57606a;
+  --border: rgba(0, 0, 0, 0.12);
+  --accent: #0969da;
+  --card-bg: #ffffff;
+  --tool-bg: #ffffff;
+  --tool-fg: #1f2328;
+  --overlay: rgba(240, 243, 247, 0.86);
+  --drop-border: #c4ccd6;
+  --user-bubble: #dbeafe;
+}
+
+/* 讓共用 materialize-dark.css 的 Materialize 元件（toast / select / modal…）跟著本頁 --accent，
+   而非預設 teal。特異度對齊 materialize-dark 的 html.dark-mode；靠較後載入勝出。 */
+html.dark-mode,
+html.light-mode {
+  --mz-primary: var(--accent);
+  --mz-focus: var(--accent);
+  --mz-surface: var(--surface);
+  --mz-text: var(--text);
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  height: 100vh;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang TC",
+    "Microsoft JhengHei", "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+
+body {
+  display: flex;
+  transition: background .2s ease, color .2s ease;
+}
+
+/* ===== 左欄：對話庫 ===== */
+#tree-pane {
+  flex: 0 0 300px;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+  min-width: 0;
+}
+
+body.tree-closed #tree-pane {
+  display: none;
+}
+
+.tree-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 14px 16px 10px;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+  font-size: .95rem;
+}
+
+.tree-header .path {
+  display: block;
+  font-size: .72rem;
+  opacity: .8;
+  word-break: break-all;
+}
+
+#tree {
+  flex: 1;
+  padding: 6px 0 24px;
+}
+
+.tree-empty {
+  padding: 18px 16px;
+  color: var(--muted);
+  font-size: .85rem;
+  line-height: 1.7;
+}
+
+.proj-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px 9px 14px;
+  cursor: pointer;
+  color: var(--text);
+  user-select: none;
+}
+
+.proj-head:hover {
+  background: rgba(127, 127, 127, 0.10);
+}
+
+.proj-head .material-icons {
+  font-size: 19px;
+  color: var(--muted);
+}
+
+.proj-head .proj-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.proj-head .count {
+  font-size: .72rem;
+  color: var(--muted);
+}
+
+.proj-head .caret {
+  transition: transform .15s ease;
+}
+
+.proj.collapsed .caret {
+  transform: rotate(-90deg);
+}
+
+.proj.collapsed .subjects {
+  display: none;
+}
+
+.subjects {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.subjects li {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 12px 8px 34px;
+  cursor: pointer;
+  color: var(--text);
+}
+
+.subjects li:hover {
+  background: rgba(127, 127, 127, 0.10);
+}
+
+.subjects li .material-icons {
+  font-size: 16px;
+  color: var(--muted);
+}
+
+.subjects li .subj-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: .9rem;
+}
+
+.subjects li .subj-meta {
+  font-size: .7rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.subjects li.active,
+.subjects li.active .material-icons {
+  color: var(--accent);
+}
+
+.subjects li.active {
+  background: rgba(127, 127, 127, 0.14);
+  font-weight: 600;
+}
+
+/* ===== 中欄：對話 ===== */
+.chat-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.chat-topbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex: 0 0 auto;
+}
+
+.chat-topbar .crumb-icon {
+  color: var(--muted);
+  font-size: 20px;
+}
+
+.chat-topbar .crumb {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: .95rem;
+}
+
+.chat-topbar .crumb-project,
+.chat-topbar .crumb-sep {
+  color: var(--muted);
+}
+
+.chat-topbar .crumb strong {
+  font-weight: 600;
+}
+
+.model-box {
+  flex: 0 0 auto;
+  width: 230px;
+}
+
+/* Materialize select 在 topbar 內收斂高度（只調間距，不動其視覺語言） */
+.model-box .select-wrapper input.select-dropdown {
+  margin: 0;
+  height: 2.4rem;
+  line-height: 2.4rem;
+  font-size: .9rem;
+}
+
+.model-box .select-wrapper .caret {
+  top: 4px;
+}
+
+/* ===== 訊息卷軸 ===== */
+#chat-scroll {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+#chat-list {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 20px 20px 28px;
+}
+
+.empty-state {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: var(--muted);
+  max-width: 480px;
+  margin: 16vh auto 0;
+  padding: 24px;
+}
+
+body.is-empty .empty-state {
+  display: flex;
+}
+
+.empty-state .material-icons {
+  font-size: 64px;
+  margin-bottom: 8px;
+  opacity: .85;
+}
+
+.empty-state h5 {
+  margin: 6px 0;
+  font-weight: 600;
+}
+
+.empty-state .hint {
+  font-size: .9rem;
+  opacity: .8;
+  line-height: 1.8;
+}
+
+/* ---- 訊息 ---- */
+.msg {
+  display: flex;
+  flex-direction: column;
+  margin: 14px 0;
+  scroll-margin-top: 16px;   /* prompt 跳轉時與 topbar 保持距離 */
+}
+
+.msg .meta {
+  font-size: .72rem;
+  color: var(--muted);
+  margin-top: 4px;
+  opacity: .8;
+}
+
+.msg.user {
+  align-items: flex-end;
+}
+
+.msg.user .bubble {
+  background: var(--user-bubble);
+  border: 1px solid var(--border);
+  border-radius: 14px 14px 4px 14px;
+  padding: 10px 14px;
+  max-width: 78%;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.65;
+}
+
+.msg.assistant {
+  align-items: flex-start;
+}
+
+.msg.assistant .bubble {
+  max-width: 100%;
+  min-width: 0;
+  line-height: 1.7;
+  word-break: break-word;
+}
+
+/* prompt 跳轉的短暫高亮 */
+.msg.flash .bubble {
+  animation: oc-flash 1.4s ease;
+}
+
+@keyframes oc-flash {
+  0%, 40% { box-shadow: 0 0 0 2px var(--accent); }
+  100% { box-shadow: 0 0 0 2px transparent; }
+}
+
+/* 等第一個 token 的「思考中」脈動點（點本體在共用 thinking-dot.css，此處只調大小與配色） */
+.msg .thinking-dot {
+  --td-size: 10px;
+  --td-color: var(--accent);
+  margin: 6px 2px;
+}
+
+/* ---- assistant markdown 內容 ---- */
+.bubble.md > :first-child { margin-top: 0; }
+.bubble.md > :last-child { margin-bottom: 0; }
+
+.bubble.md h1, .bubble.md h2, .bubble.md h3, .bubble.md h4 {
+  margin: 1.1em 0 .5em;
+  line-height: 1.35;
+}
+
+.bubble.md h1 { font-size: 1.45rem; }
+.bubble.md h2 { font-size: 1.28rem; }
+.bubble.md h3 { font-size: 1.12rem; }
+.bubble.md h4 { font-size: 1rem; }
+
+.bubble.md p { margin: .6em 0; }
+
+.bubble.md a { color: var(--accent); }
+
+.bubble.md ul, .bubble.md ol {
+  margin: .6em 0;
+  padding-left: 1.6em;
+}
+
+.bubble.md ul { list-style-type: disc; }   /* Materialize 會拿掉 list-style，這裡要回來 */
+.bubble.md ul ul { list-style-type: circle; }
+.bubble.md li { margin: .25em 0; }
+
+.bubble.md blockquote {
+  margin: .8em 0;
+  padding: 2px 14px;
+  border-left: 3px solid var(--accent);
+  color: var(--muted);
+  background: transparent;
+  box-shadow: none;
+}
+
+.bubble.md code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: .88em;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+.bubble.md pre {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  overflow-x: auto;
+  line-height: 1.6;
+}
+
+.bubble.md pre code {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font-size: .85rem;
+}
+
+.bubble.md table {
+  margin: .8em 0;
+  border-collapse: collapse;
+  display: block;
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+.bubble.md th, .bubble.md td {
+  border: 1px solid var(--border);
+  padding: 6px 12px;
+}
+
+.bubble.md hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 1.2em 0;
+}
+
+/* ---- 程式碼區塊複製鈕（比照家族 §4.5；此處為 light DOM，可用 Material Icons） ---- */
+.code-wrap {
+  position: relative;
+}
+
+.code-wrap .code-copy {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity .15s ease, color .15s ease;
+  padding: 0;
+}
+
+.code-wrap:hover .code-copy { opacity: 1; }
+.code-wrap .code-copy:hover,
+.code-wrap .code-copy:focus,
+.code-wrap .code-copy:active {
+  color: var(--text);
+  background: var(--surface);   /* 蓋掉 Materialize 對裸 <button> 的 teal 互動底（§5.1 gotcha） */
+}
+
+.code-wrap .code-copy .material-icons { font-size: 17px; }
+.code-wrap .code-copy.copied { color: #4caf50; }
+
+@media (hover: none) {
+  .code-wrap .code-copy { opacity: 1; }   /* 觸控裝置一律顯示 */
+}
+
+/* ===== 輸入列 ===== */
+.chat-input {
+  flex: 0 0 auto;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  padding: 10px 16px 14px;
+}
+
+.input-row {
+  max-width: 860px;
+  margin: 0 auto;
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.input-row textarea.materialize-textarea {
+  flex: 1 1 auto;
+  margin: 0;
+  max-height: 220px;
+  overflow-y: auto;
+  line-height: 1.6;
+}
+
+#send-btn {
+  flex: 0 0 auto;
+}
+
+#send-btn.stop {
+  background-color: #c62828 !important;   /* 串流中變「停止」鍵 */
+}
+
+/* ===== 右側 prompt 清單（Materialize sidenav） ===== */
+.sidenav {
+  background: var(--surface) !important;
+  left: auto !important;
+  right: 0 !important;
+}
+
+.sidenav .subheader {
+  height: auto !important;
+  min-height: 0 !important;
+  line-height: 1.4 !important;
+  padding: 12px 20px !important;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: var(--muted) !important;
+}
+
+.sidenav .subheader .material-icons {
+  margin-top: 1px;
+}
+
+.sidenav .subheader .path {
+  display: block;
+  font-size: .76rem;
+  opacity: .8;
+  word-break: break-all;
+}
+
+.sidenav li>a {
+  height: auto !important;
+  line-height: 1.5 !important;
+  padding: 10px 20px !important;
+  color: var(--text) !important;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.sidenav li>a .prompt-no {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: .78rem;
+  margin-top: 2px;
+}
+
+.sidenav li>a .prompt-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: .9rem;
+}
+
+.sidenav .divider {
+  background-color: var(--border) !important;
+}
+
+.prompt-empty {
+  padding: 16px 20px;
+  color: var(--muted);
+  font-size: .85rem;
+}
+
+/* ===== 側鍵：刪除為警示鍵（hover 轉紅，比照 side-tool.css 的 #setting-clear） ===== */
+#setting-delete:hover {
+  color: #ff6e6e;
+}
+
+/* ===== 窄螢幕：左欄改覆蓋式 ===== */
+@media (max-width: 800px) {
+  #tree-pane {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 300px;
+    z-index: 1100;
+    box-shadow: 4px 0 14px rgba(0, 0, 0, .3);
+  }
+
+  .model-box {
+    width: 160px;
+  }
+}
+
+/* ===== 列印：只留對話內容 ===== */
+@media print {
+  html, body { height: auto; overflow: visible; background: #fff !important; }
+  #tree-pane, .chat-topbar, .chat-input, .sidenav, .sidenav-overlay,
+  #toast-container, .code-wrap .code-copy { display: none !important; }
+  #chat-scroll { overflow: visible; }
+}

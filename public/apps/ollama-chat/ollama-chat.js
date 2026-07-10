@@ -1,0 +1,632 @@
+/**
+ * ollama-chat — 頁面控制器（glue）
+ *
+ * DOM 行為：主題切換、i18n（透過 I18n 引擎）、對話庫樹（project→subject）、
+ * 訊息渲染（marked + DOMPurify）、串流中節流重繪、prompt 清單跳轉、
+ * 新對話 modal、刪除／匯出、輸入列（Enter 送出、IME 組字不誤送）。
+ * 串流讀取、對話物件、prompt 索引、與伺服器溝通在 ollama-chat-lib.js；
+ * i18n 引擎在 i18n.js，語言字典在 locales/<code>.js。
+ *
+ * 依賴（皆於 index.html 先載入）：jQuery / Materialize / Lodash / marked / DOMPurify /
+ * OllamaChatLib / I18n（+ locales）。
+ */
+
+(function () {
+  'use strict';
+
+  var L = window.OllamaChatLib;
+  var THEME_KEY = 'ollama-chat-theme';
+  var MODEL_KEY = 'ollama-chat-model';
+  var DEFAULT_PROJECT = 'inbox';   // 直接輸入（未先建 subject）時的落點資料夾
+
+  var chatScroll = document.getElementById('chat-scroll');
+  var chatList = document.getElementById('chat-list');
+  var inputEl = document.getElementById('chat-text');
+  var sendBtn = document.getElementById('send-btn');
+  var treeEl = document.getElementById('tree');
+  var modelSelect = document.getElementById('model-select');
+  var crumbProject = document.getElementById('crumb-project');
+  var crumbSep = document.getElementById('crumb-sep');
+  var crumbSubject = document.getElementById('crumb-subject');
+  var promptList = document.getElementById('prompt-list');
+  var promptPath = document.getElementById('prompt-path');
+
+  var state = {
+    theme: 'dark',
+    models: [],
+    model: '',
+    tree: [],
+    project: null,   // 目前開啟的 project（資料夾名）
+    subject: null,   // 目前開啟的 subject（檔名去 .json）
+    chat: null,      // { model, createdAt, updatedAt, messages }
+    streaming: false,
+    abortCtl: null,
+    collapsed: {}    // project name → true（樹狀收合狀態，僅記憶體）
+  };
+
+  /* ---------- 主題（light / dark） ---------- */
+
+  function applyTheme(theme) {
+    theme = theme === 'light' ? 'light' : 'dark';
+    state.theme = theme;
+    var r = document.documentElement;
+    r.setAttribute('data-theme', theme);
+    r.classList.toggle('dark-mode', theme === 'dark');
+    r.classList.toggle('light-mode', theme === 'light');
+    var icon = document.querySelector('#setting-mode i');
+    if (icon) icon.textContent = theme === 'dark' ? 'dark_mode' : 'light_mode';
+    try { localStorage.setItem(THEME_KEY, theme); } catch (e) {}
+  }
+
+  // 「已執行」微回饋：icon 暫時變 check 800ms（家族 §5.5）
+  function setIconDone(el) {
+    var i = el && el.querySelector('i');
+    if (!i) return;
+    var orig = i.textContent;
+    i.textContent = 'check';
+    setTimeout(function () { i.textContent = orig; }, 800);
+  }
+
+  /* ---------- Markdown 渲染（DOM 工作，故在控制器不在 lib） ---------- */
+
+  marked.use({ gfm: true, breaks: true });
+
+  // 外部連結一律新分頁 + noopener（LLM 輸出裡的連結不該奪走本頁）
+  DOMPurify.addHook('afterSanitizeAttributes', function (node) {
+    if (node.tagName === 'A' && node.getAttribute('href')) {
+      node.setAttribute('target', '_blank');
+      node.setAttribute('rel', 'noopener noreferrer');
+    }
+  });
+
+  function renderMarkdown(text) {
+    return DOMPurify.sanitize(marked.parse(String(text || '')));
+  }
+
+  /* ---------- 程式碼區塊複製鈕（比照家族 §4.5；冪等） ---------- */
+
+  function addCopyButtons(container) {
+    container.querySelectorAll('pre').forEach(function (pre) {
+      if (pre.parentElement && pre.parentElement.classList.contains('code-wrap')) return;
+      var wrap = document.createElement('div');
+      wrap.className = 'code-wrap';
+      pre.parentNode.insertBefore(wrap, pre);
+      wrap.appendChild(pre);
+      var btn = document.createElement('button');
+      btn.className = 'code-copy';
+      btn.type = 'button';
+      btn.title = I18n.t('tool.copyCode');
+      btn.innerHTML = '<i class="material-icons">content_copy</i>';
+      btn.addEventListener('click', function () {
+        var code = pre.querySelector('code');
+        var text = code ? code.textContent : pre.textContent;
+        navigator.clipboard.writeText(text).then(function () {
+          btn.classList.add('copied');
+          btn.querySelector('i').textContent = 'check';
+          setTimeout(function () {
+            btn.classList.remove('copied');
+            btn.querySelector('i').textContent = 'content_copy';
+          }, 1200);
+          M.toast({ html: I18n.t('toast.copied'), classes: 'teal' });
+        }).catch(function () {
+          M.toast({ html: I18n.t('toast.copyFail'), classes: 'red' });
+        });
+      });
+      wrap.appendChild(btn);
+    });
+  }
+
+  /* ---------- 訊息渲染 ---------- */
+
+  function buildMsgEl(m, index) {
+    var wrap = document.createElement('div');
+    wrap.className = 'msg ' + m.role;
+    wrap.id = 'msg-' + index;
+    var bubble = document.createElement('div');
+    if (m.role === 'assistant') {
+      bubble.className = 'bubble md';
+      bubble.innerHTML = renderMarkdown(m.content);
+      addCopyButtons(bubble);
+    } else {
+      bubble.className = 'bubble';
+      bubble.textContent = m.content;
+    }
+    wrap.appendChild(bubble);
+    var meta = document.createElement('div');
+    meta.className = 'meta';
+    meta.textContent = (m.role === 'assistant' && m.model ? m.model + ' · ' : '') + L.formatTs(m.ts);
+    wrap.appendChild(meta);
+    return wrap;
+  }
+
+  function renderMessages() {
+    chatList.innerHTML = '';
+    var msgs = (state.chat && state.chat.messages) || [];
+    msgs.forEach(function (m, i) { chatList.appendChild(buildMsgEl(m, i)); });
+    document.body.classList.toggle('is-empty', !msgs.length);
+    renderPromptList();
+  }
+
+  function nearBottom() {
+    return chatScroll.scrollTop + chatScroll.clientHeight >= chatScroll.scrollHeight - 120;
+  }
+
+  function scrollBottom() {
+    chatScroll.scrollTop = chatScroll.scrollHeight;
+  }
+
+  /* ---------- 頁面狀態（topbar / 側鍵可見性 / 標題） ---------- */
+
+  function updateChrome() {
+    var open = !!state.subject;
+    crumbProject.textContent = open ? state.project : '';
+    crumbSep.style.display = open ? '' : 'none';
+    if (open) {
+      crumbSubject.removeAttribute('data-i18n');
+      crumbSubject.textContent = state.subject;
+      document.title = state.subject + ' | ' + I18n.t('title.suffix');
+    } else {
+      crumbSubject.setAttribute('data-i18n', 'topbar.none');
+      crumbSubject.textContent = I18n.t('topbar.none');
+      document.title = I18n.t('title.suffix');
+    }
+    // subject 相關側鍵只在有開啟對話時顯示（.side-tool 預設 flex，顯示要給明確值）
+    ['setting-prompts', 'setting-download', 'setting-delete'].forEach(function (id) {
+      document.getElementById(id).style.display = open ? 'flex' : 'none';
+    });
+    promptPath.textContent = open ? (state.project + '／' + state.subject) : '';
+  }
+
+  /* ---------- 對話庫樹 ---------- */
+
+  function refreshTree() {
+    return L.getTree().then(function (projects) {
+      state.tree = projects;
+      renderTree();
+      fillProjectDatalist();
+    }).catch(function (err) {
+      M.toast({ html: I18n.t('toast.treeFail', { m: err.message }), classes: 'red' });
+    });
+  }
+
+  function renderTree() {
+    if (!state.tree.length) {
+      treeEl.innerHTML = '<div class="tree-empty">' + I18n.t('tree.empty') + '</div>';
+      return;
+    }
+    treeEl.innerHTML = state.tree.map(function (p) {
+      var subjects = p.subjects.map(function (s) {
+        var active = (p.name === state.project && s.name === state.subject);
+        return '<li data-project="' + _.escape(p.name) + '" data-name="' + _.escape(s.name) + '"' +
+          (active ? ' class="active"' : '') + '>' +
+          '<i class="material-icons">chat_bubble_outline</i>' +
+          '<span class="subj-name">' + _.escape(s.name) + '</span>' +
+          '<span class="subj-meta">' + (s.messageCount || 0) + '</span>' +
+          '</li>';
+      }).join('');
+      return '<div class="proj' + (state.collapsed[p.name] ? ' collapsed' : '') + '" data-project="' + _.escape(p.name) + '">' +
+        '<div class="proj-head">' +
+        '<i class="material-icons">folder</i>' +
+        '<span class="proj-name">' + _.escape(p.name) + '</span>' +
+        '<span class="count">' + p.subjects.length + '</span>' +
+        '<i class="material-icons caret">expand_more</i>' +
+        '</div>' +
+        '<ul class="subjects">' + subjects + '</ul>' +
+        '</div>';
+    }).join('');
+  }
+
+  function markTreeActive() {
+    treeEl.querySelectorAll('.subjects li').forEach(function (li) {
+      li.classList.toggle('active',
+        li.getAttribute('data-project') === state.project &&
+        li.getAttribute('data-name') === state.subject);
+    });
+  }
+
+  function fillProjectDatalist() {
+    var dl = document.getElementById('project-datalist');
+    dl.innerHTML = state.tree.map(function (p) {
+      return '<option value="' + _.escape(p.name) + '"></option>';
+    }).join('');
+  }
+
+  // 該 project 下已存在的 subject 名（避免自動命名整檔覆寫掉既有對話）
+  function takenNames(project) {
+    var hit = state.tree.filter(function (p) { return p.name === project; })[0];
+    return hit ? hit.subjects.map(function (s) { return s.name; }) : [];
+  }
+
+  /* ---------- 開啟 / 建立 subject ---------- */
+
+  function openSubject(project, name, skipHistory) {
+    if (state.streaming) {
+      M.toast({ html: I18n.t('toast.busy'), classes: 'orange' });
+      return Promise.resolve();
+    }
+    return L.loadSubject(project, name).then(function (chat) {
+      state.project = project;
+      state.subject = name;
+      state.chat = chat;
+      // subject 記錄的模型若仍可用，跟著切換
+      if (chat.model && state.models.some(function (m) { return m.name === chat.model; })) {
+        setModel(chat.model);
+      }
+      if (!skipHistory) {
+        try {
+          history.pushState({ project: project, subject: name }, '',
+            '?project=' + encodeURIComponent(project) + '&subject=' + encodeURIComponent(name));
+        } catch (e) {}
+      }
+      renderMessages();
+      updateChrome();
+      markTreeActive();
+      scrollBottom();
+    }).catch(function (err) {
+      M.toast({ html: I18n.t('toast.loadFail', { n: project + '／' + name, m: err.message }), classes: 'red' });
+    });
+  }
+
+  function closeSubject() {
+    state.project = null;
+    state.subject = null;
+    state.chat = null;
+    try { history.replaceState({}, '', './'); } catch (e) {}
+    renderMessages();
+    updateChrome();
+    markTreeActive();
+  }
+
+  // 直接輸入（尚未開啟 subject）→ 以首個 prompt 自動命名、落 inbox
+  function ensureSubject(firstText) {
+    if (state.chat) return false;
+    var project = DEFAULT_PROJECT;
+    var name = L.autoName(firstText) || 'chat-' + L.timestamp();
+    name = L.uniqueName(name, takenNames(project));
+    state.project = project;
+    state.subject = name;
+    state.chat = L.newChat(state.model);
+    try {
+      history.pushState({ project: project, subject: name }, '',
+        '?project=' + encodeURIComponent(project) + '&subject=' + encodeURIComponent(name));
+    } catch (e) {}
+    updateChrome();
+    return true;
+  }
+
+  /* ---------- 存檔 ---------- */
+
+  function persist() {
+    if (!state.subject || !state.chat) return Promise.resolve();
+    return L.saveSubject(state.project, state.subject, state.chat).then(function (d) {
+      state.chat.updatedAt = d.updatedAt;
+      return refreshTree();
+    }).catch(function (err) {
+      M.toast({ html: I18n.t('toast.saveFail', { m: err.message }), classes: 'red' });
+    });
+  }
+
+  /* ---------- 送出 / 串流 ---------- */
+
+  function setSendBtn(streaming) {
+    sendBtn.classList.toggle('stop', streaming);
+    sendBtn.querySelector('i').textContent = streaming ? 'stop' : 'send';
+    sendBtn.title = I18n.t(streaming ? 'btn.stop' : 'btn.send');
+  }
+
+  function send() {
+    if (state.streaming) {           // 串流中，送出鍵＝停止鍵
+      if (state.abortCtl) state.abortCtl.abort();
+      return;
+    }
+    var text = inputEl.value.replace(/\s+$/, '');
+    if (!text.trim()) return;
+    if (!state.model) {
+      M.toast({ html: I18n.t('toast.noModel'), classes: 'orange' });
+      return;
+    }
+    ensureSubject(text);
+    inputEl.value = '';
+    M.textareaAutoResize(inputEl);
+    state.chat.model = state.model;
+    state.chat.messages.push(L.userMessage(text));
+    renderMessages();
+    updateChrome();
+    scrollBottom();
+    persist();
+    startStream();
+  }
+
+  function startStream() {
+    state.streaming = true;
+    setSendBtn(true);
+
+    // 佔位訊息：先掛「思考中」脈動點，第一個 token 到就換成串流內容
+    var pendingWrap = document.createElement('div');
+    pendingWrap.className = 'msg assistant streaming';
+    var pendingBubble = document.createElement('div');
+    pendingBubble.className = 'bubble md';
+    pendingBubble.innerHTML = '<span class="thinking-dot"></span>';
+    pendingWrap.appendChild(pendingBubble);
+    chatList.appendChild(pendingWrap);
+    document.body.classList.remove('is-empty');
+    scrollBottom();
+
+    var ctl = new AbortController();
+    state.abortCtl = ctl;
+    var lastRender = 0;
+
+    function renderPending(full) {
+      var stick = nearBottom();
+      pendingBubble.innerHTML = renderMarkdown(full);
+      if (stick) scrollBottom();
+    }
+
+    L.chatStream({
+      model: state.model,
+      messages: state.chat.messages.map(function (m) { return { role: m.role, content: m.content }; }),
+      signal: ctl.signal,
+      onChunk: function (delta, full) {
+        var now = Date.now();
+        if (now - lastRender > 120) {   // 節流重繪：markdown 全文重 parse，120ms 一次足夠順
+          lastRender = now;
+          renderPending(full);
+        }
+      }
+    }).then(function (r) {
+      state.streaming = false;
+      state.abortCtl = null;
+      setSendBtn(false);
+      pendingWrap.remove();
+      if (r.content) {
+        var model = (r.stats && r.stats.model) || state.model;
+        state.chat.messages.push(L.assistantMessage(r.content, model));
+        renderMessages();
+        scrollBottom();
+        persist();
+      }
+      if (r.aborted) M.toast({ html: I18n.t('toast.aborted'), classes: 'grey' });
+    }).catch(function (err) {
+      state.streaming = false;
+      state.abortCtl = null;
+      setSendBtn(false);
+      pendingWrap.remove();
+      renderMessages();   // is-empty 等狀態復原
+      M.toast({ html: I18n.t('toast.chatFail', { m: err.message }), classes: 'red' });
+    });
+  }
+
+  /* ---------- 模型清單 ---------- */
+
+  function setModel(name) {
+    state.model = name;
+    try { localStorage.setItem(MODEL_KEY, name); } catch (e) {}
+    if (modelSelect.value !== name) {
+      modelSelect.value = name;
+      M.FormSelect.init(modelSelect);
+    }
+  }
+
+  function loadModels() {
+    return L.listModels().then(function (models) {
+      state.models = models;
+      modelSelect.innerHTML = models.map(function (m) {
+        return '<option value="' + _.escape(m.name) + '">' +
+          _.escape(m.name) + '（' + L.formatSize(m.size) + '）</option>';
+      }).join('');
+      var saved = null;
+      try { saved = localStorage.getItem(MODEL_KEY); } catch (e) {}
+      var pick = models.some(function (m) { return m.name === saved; }) ? saved
+        : (models.length ? models[0].name : '');
+      if (pick) setModel(pick);
+      M.FormSelect.init(modelSelect);
+      if (!models.length) M.toast({ html: I18n.t('toast.noModel'), classes: 'orange' });
+    }).catch(function (err) {
+      M.FormSelect.init(modelSelect);
+      M.toast({ html: I18n.t('toast.modelsFail', { m: err.message }), classes: 'red' });
+    });
+  }
+
+  /* ---------- prompt 清單（右側 sidenav） ---------- */
+
+  function renderPromptList() {
+    var items = L.promptIndex((state.chat && state.chat.messages) || []);
+    if (!items.length) {
+      promptList.innerHTML = '<div class="prompt-empty">' + I18n.t('prompt.empty') + '</div>';
+      return;
+    }
+    promptList.innerHTML = items.map(function (it, n) {
+      return '<li><a href="#!" class="prompt-item" data-index="' + it.index + '">' +
+        '<span class="prompt-no">' + (n + 1) + '.</span>' +
+        '<span class="prompt-text">' + _.escape(it.text) + '</span>' +
+        '</a></li>';
+    }).join('');
+  }
+
+  function jumpToMessage(index) {
+    var el = document.getElementById('msg-' + index);
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    el.classList.remove('flash');
+    void el.offsetWidth;   // 重觸發動畫
+    el.classList.add('flash');
+  }
+
+  /* ---------- 新對話 modal ---------- */
+
+  function openNewModal() {
+    document.getElementById('new-project').value = state.project || DEFAULT_PROJECT;
+    document.getElementById('new-subject').value = '';
+    M.updateTextFields();
+    M.Modal.getInstance(document.getElementById('new-modal')).open();
+  }
+
+  function createFromModal() {
+    var project = document.getElementById('new-project').value.trim();
+    var subject = document.getElementById('new-subject').value.trim();
+    if (!L.isSafeName(project) || !L.isSafeName(subject)) {
+      M.toast({ html: I18n.t('toast.nameBad'), classes: 'orange' });
+      return;
+    }
+    subject = L.uniqueName(subject, takenNames(project));
+    state.project = project;
+    state.subject = subject;
+    state.chat = L.newChat(state.model);
+    try {
+      history.pushState({ project: project, subject: subject }, '',
+        '?project=' + encodeURIComponent(project) + '&subject=' + encodeURIComponent(subject));
+    } catch (e) {}
+    M.Modal.getInstance(document.getElementById('new-modal')).close();
+    renderMessages();
+    updateChrome();
+    persist().then(function () {
+      markTreeActive();
+      M.toast({ html: I18n.t('toast.created', { n: project + '／' + subject }), classes: 'teal' });
+    });
+    inputEl.focus();
+  }
+
+  /* ---------- 刪除 / 匯出 ---------- */
+
+  function deleteCurrent() {
+    if (!state.subject) return;
+    if (state.streaming) {
+      M.toast({ html: I18n.t('toast.busy'), classes: 'orange' });
+      return;
+    }
+    var label = state.project + '／' + state.subject;
+    if (!confirm(I18n.t('confirm.delete', { n: label }))) return;
+    L.deleteSubject(state.project, state.subject).then(function () {
+      M.toast({ html: I18n.t('toast.deleted', { n: label }), classes: 'teal' });
+      closeSubject();
+      return refreshTree();
+    }).catch(function (err) {
+      M.toast({ html: I18n.t('toast.deleteFail', { m: err.message }), classes: 'red' });
+    });
+  }
+
+  function exportCurrent() {
+    if (!state.chat) return;
+    var md = L.exportMarkdown(state.project, state.subject, state.chat);
+    L.downloadText(L.stampFilename(state.subject + '.md'), md);
+    setIconDone(document.getElementById('setting-download'));
+  }
+
+  /* ---------- 語系（i18n） ---------- */
+
+  function cycleLang() {
+    var next = I18n.cycle();
+    M.toast({ html: I18n.t('toast.lang', { name: I18n.name(next) }), classes: 'teal' });
+  }
+
+  function onLangChanged() {
+    renderTree();          // 「尚無對話」訊息隨語系
+    renderPromptList();
+    updateChrome();
+    setSendBtn(state.streaming);
+  }
+
+  /* ---------- 事件繫結 ---------- */
+
+  function bindEvents() {
+    // 樹：project 收合 / subject 開啟
+    $(document).on('click', '#tree .proj-head', function () {
+      var proj = $(this).closest('.proj');
+      var name = proj.attr('data-project');
+      state.collapsed[name] = !state.collapsed[name];
+      proj.toggleClass('collapsed', !!state.collapsed[name]);
+    });
+    $(document).on('click', '#tree .subjects li', function () {
+      openSubject($(this).attr('data-project'), $(this).attr('data-name'));
+      if (window.innerWidth <= 800) document.body.classList.add('tree-closed');
+    });
+
+    // prompt 清單
+    $(document).on('click', '#prompt-list a.prompt-item', function (e) {
+      e.preventDefault();
+      var idx = Number($(this).data('index'));
+      var inst = M.Sidenav.getInstance(document.getElementById('prompt-nav'));
+      if (inst && inst.isOpen) inst.close();
+      jumpToMessage(idx);
+    });
+
+    // 輸入列：Enter 送出、Shift+Enter 換行；IME 組字中（isComposing）不觸發
+    inputEl.addEventListener('keydown', function (e) {
+      if (e.key !== 'Enter' || e.shiftKey) return;
+      if (e.isComposing || e.keyCode === 229) return;
+      e.preventDefault();
+      send();
+    });
+    sendBtn.addEventListener('click', send);
+
+    // 模型切換
+    modelSelect.addEventListener('change', function () {
+      setModel(modelSelect.value);
+      if (state.chat) state.chat.model = state.model;   // 下次存檔帶上
+    });
+
+    // 右側工具列
+    document.getElementById('setting-menu').addEventListener('click', function () {
+      var closed = document.body.classList.toggle('tree-closed');
+      this.classList.toggle('active', !closed);
+    });
+    document.getElementById('setting-prompts').addEventListener('click', function () {
+      var inst = M.Sidenav.getInstance(document.getElementById('prompt-nav'));
+      if (inst) inst.open();
+    });
+    document.getElementById('setting-new').addEventListener('click', openNewModal);
+    document.getElementById('setting-download').addEventListener('click', exportCurrent);
+    document.getElementById('setting-delete').addEventListener('click', deleteCurrent);
+    document.getElementById('setting-mode').addEventListener('click', function () {
+      applyTheme(state.theme === 'dark' ? 'light' : 'dark');
+    });
+    document.getElementById('setting-lang').addEventListener('click', cycleLang);
+    document.getElementById('new-create').addEventListener('click', createFromModal);
+
+    // 上一頁／下一頁：依 ?project=&subject= 重新載入
+    window.addEventListener('popstate', function () {
+      var q = new URLSearchParams(location.search);
+      var p = q.get('project'), s = q.get('subject');
+      if (p && s) openSubject(p, s, true);
+      else closeSubject();
+    });
+  }
+
+  /* ---------- 初始化 ---------- */
+
+  document.addEventListener('DOMContentLoaded', function () {
+    M.Sidenav.init(document.getElementById('prompt-nav'), {
+      edge: 'right',
+      onOpenStart: function () { document.body.classList.add('sidenav-open'); },
+      onCloseEnd: function () { document.body.classList.remove('sidenav-open'); }
+    });
+    M.Modal.init(document.getElementById('new-modal'));
+    M.FormSelect.init(modelSelect);
+
+    var saved = 'dark';
+    try { saved = localStorage.getItem(THEME_KEY) || 'dark'; } catch (e) {}
+    applyTheme(saved === 'light' ? 'light' : 'dark');
+
+    // i18n：套用靜態文字 / 標題（引擎自解析初始語系：?lang → localStorage('lang') → 瀏覽器 → zh-Hant）
+    I18n.apply(document);
+    document.addEventListener('i18n:changed', onLangChanged);
+
+    // 窄螢幕預設收起左欄；#setting-menu 的 .active 表示樹開啟中
+    var treeClosed = window.innerWidth <= 800;
+    document.body.classList.toggle('tree-closed', treeClosed);
+    document.getElementById('setting-menu').classList.toggle('active', !treeClosed);
+
+    bindEvents();
+    updateChrome();
+    document.body.classList.add('is-empty');
+
+    // ?project=&subject= 深連結：模型清單先就緒（openSubject 會比對模型），再開啟
+    var q = new URLSearchParams(location.search);
+    var p = q.get('project'), s = q.get('subject');
+    Promise.all([loadModels(), refreshTree()]).then(function () {
+      if (p && s) openSubject(p, s, true);
+    });
+
+    inputEl.focus();
+  });
+})();

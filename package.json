@@ -1,0 +1,24 @@
+{
+  "name": "ollama-chat",
+  "version": "1.0.0",
+  "description": "本地 Ollama 的全版面 Web 聊天介面：project（資料夾）→ subject（一組對話 JSON）→ prompt 索引；串流回覆、markdown 渲染、三語 i18n、light/dark 主題。輕量 Express 後端（Ollama proxy + 對話存取）。",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js"
+  },
+  "keywords": [
+    "ollama",
+    "chat",
+    "llm",
+    "local-ai",
+    "streaming",
+    "express",
+    "materialize"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2",
+    "morgan": "^1.10.0"
+  }
+}

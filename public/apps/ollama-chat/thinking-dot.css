@@ -1,0 +1,24 @@
+/**
+ * thinking-dot.css — Claude 風「思考中」呼吸脈動點（純 CSS utility、token 驅動）
+ *
+ * 用法：<span class="thinking-dot"></span>
+ * 可覆寫 token（設在 .thinking-dot 或祖先上）：
+ *   --td-size   點直徑（預設 27px）
+ *   --td-color  點顏色（預設 #ef9f27）
+ *   --td-speed  呼吸週期（預設 2.1s）
+ *
+ * 預設值由 demo（/apps/markdown-library/demo/thinking-dot.html）「調整→預覽→存檔覆蓋」本檔重新產生；
+ * 各 app 仍可就地以 token 覆寫（例：#loading .thinking-dot { --td-color: var(--accent); }）。
+ * 家族 4 份同步副本之一，以 markdown-library 這份為準（同 md-tweaks.js / side-tool.css）。
+ */
+@keyframes thinking-pulse {
+  0%, 100% { transform: scale(.5); opacity: .4; }
+  50%      { transform: scale(1);  opacity: 1; }
+}
+.thinking-dot {
+  width: var(--td-size, 27px);
+  height: var(--td-size, 27px);
+  border-radius: 50%;
+  background: var(--td-color, #ef9f27);
+  animation: thinking-pulse var(--td-speed, 2.1s) ease-in-out infinite;
+}
