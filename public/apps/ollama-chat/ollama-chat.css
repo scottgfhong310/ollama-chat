@@ -657,8 +657,16 @@ body.is-empty .empty-state {
   padding: 10px 20px !important;
   color: var(--text) !important;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 8px;
+}
+
+/* Materialize 預設給 sidenav 內 icon 48px 高的盒（height/line-height），
+   會把 icon 往下推、與文字錯位——重置成貼字盒，列的垂直置中才成立 */
+.sidenav li>a i.material-icons {
+  height: auto;
+  line-height: 1;
+  margin: 0;
 }
 
 .sidenav li>a .prompt-no {
@@ -688,6 +696,10 @@ body.is-empty .empty-state {
 }
 
 /* ===== Prompt 樣板庫（#template-nav；列版型沿用 sidenav li>a） ===== */
+#template-nav li>a .material-icons {
+  font-size: 19px;   /* icon 配合樣板列內容，比預設 24px 收小 */
+}
+
 #template-nav .tpl-text {
   flex: 1 1 auto;
   min-width: 0;
