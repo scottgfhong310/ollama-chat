@@ -33,6 +33,7 @@
  *   OllamaChatLib.getTree()                     → Promise<Array<project>>
  *   OllamaChatLib.loadSubject(project, name)    → Promise<chat>
  *   OllamaChatLib.saveSubject(project, name, chat) → Promise<{updatedAt}>
+ *   OllamaChatLib.renameSubject(project, name, newProject, newName) → Promise<{project,name}>
  *   OllamaChatLib.deleteSubject(project, name)  → Promise<{ok}>
  *   OllamaChatLib.exportMarkdown(project, name, chat) → string
  *   OllamaChatLib.downloadText(name, text)      → void        Blob → <a download>
@@ -51,6 +52,7 @@
   var TREE_API = API_BASE + '/tree';
   var SUBJECT_API = API_BASE + '/subject';
   var DELETE_API = API_BASE + '/delete';
+  var RENAME_API = API_BASE + '/rename';
 
   /* ---------- 工具 ---------- */
 
@@ -196,6 +198,13 @@
     return postJson(DELETE_API, { project: project, name: name });
   }
 
+  // 改名／搬 project。目標已存在時後端回 409 { error:'target exists' }，由 UI 轉專屬 toast。
+  function renameSubject(project, name, newProject, newName) {
+    return postJson(RENAME_API, {
+      project: project, name: name, newProject: newProject, newName: newName
+    });
+  }
+
   /**
    * 對話串流。
    * opts: { model, messages, signal?, onChunk?(delta, full) }
@@ -318,6 +327,7 @@
     getTree: getTree,
     loadSubject: loadSubject,
     saveSubject: saveSubject,
+    renameSubject: renameSubject,
     deleteSubject: deleteSubject,
     exportMarkdown: exportMarkdown,
     downloadText: downloadText,

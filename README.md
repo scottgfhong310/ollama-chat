@@ -19,6 +19,7 @@ Not compatible with GitHub Pages (requires the Node backend).
 - **Prompt index**: every user prompt in a subject is listed in a slide-in panel; clicking one scrolls to that exchange.
 - **Auto-naming**: typing without opening a subject creates one named from your first prompt, stored under `inbox`.
 - **Markdown replies** with fenced-code copy buttons; user content is never translated or altered.
+- **Rename / move**: retitle a subject or move it to another project from the side rail (name = path; refuses to overwrite an existing target).
 - **Export** any subject as Markdown (`<subject>-yyyyMMddHHmmss.md`).
 - **Deep links**: `?project=<p>&subject=<s>` opens a conversation directly.
 - i18n (zh-Hant / en / ja), CSS-variable theming (default dark), family side-tool rail.
@@ -54,6 +55,7 @@ public/upload/ollama-chat/chats/    # conversations (not committed)
 | GET | `/api/ollama-chat/tree` | Scan `chats/` → `{ ok, projects: [{ name, subjects }] }` |
 | GET | `/api/ollama-chat/subject?project=&name=` | Read one subject → `{ ok, chat }` |
 | POST | `/api/ollama-chat/subject` | `{ project, name, chat }` — write (overwrite) one subject |
+| POST | `/api/ollama-chat/rename` | `{ project, name, newProject, newName }` — rename / move to another project (409 if target exists) |
 | POST | `/api/ollama-chat/delete` | `{ project, name }` — move the file to `chats/.bak/` |
 
 All endpoints use the family `{ ok }` envelope except the successful `/chat` stream,

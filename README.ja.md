@@ -19,6 +19,7 @@ GitHub Pages には非対応（Node バックエンドが必要）。
 - **プロンプト索引**：subject 内のすべてのユーザー発言をスライドインパネルに一覧表示；クリックでそのやり取りへスクロール。
 - **自動命名**：subject を開かずに入力すると、最初の一文から命名され `inbox` に保存。
 - **Markdown 返信**：fenced code にコピーボタン付き；データ内容は翻訳・改変しない。
+- **名前変更／移動**：サイドレールから subject の改名や別 project への移動（名前＝パス；移動先が既存の場合は拒否、上書きしない）。
 - **エクスポート**：任意の subject を Markdown（`<subject>-yyyyMMddHHmmss.md`）に。
 - **ディープリンク**：`?project=<p>&subject=<s>` で会話を直接開く。
 - 3 言語 i18n、CSS 変数テーマ（デフォルト dark）、ファミリー共通サイドツールレール。
@@ -54,6 +55,7 @@ public/upload/ollama-chat/chats/    # 会話データ（コミットしない）
 | GET | `/api/ollama-chat/tree` | `chats/` をスキャン → `{ ok, projects: [{ name, subjects }] }` |
 | GET | `/api/ollama-chat/subject?project=&name=` | subject を 1 件読む → `{ ok, chat }` |
 | POST | `/api/ollama-chat/subject` | `{ project, name, chat }`——ファイル全体を上書き保存 |
+| POST | `/api/ollama-chat/rename` | `{ project, name, newProject, newName }`——名前変更／別 project へ移動（移動先が存在する場合は 409） |
 | POST | `/api/ollama-chat/delete` | `{ project, name }`——ファイルを `chats/.bak/` へ移動 |
 
 成功時の `/chat` ストリーム（Ollama の NDJSON をそのまま通す）を除き、

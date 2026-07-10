@@ -98,7 +98,7 @@
   <!-- ===== 新對話 Modal（Materialize 原生 input-field，深色由 materialize-dark.css 處理） ===== -->
   <div id="new-modal" class="modal">
     <div class="modal-content">
-      <h5 data-i18n="modal.title">新對話</h5>
+      <h5 id="new-modal-title" data-i18n="modal.title">新對話</h5>
       <div class="input-field">
         <input id="new-project" type="text" list="project-datalist" maxlength="80" />
         <label for="new-project" data-i18n="modal.project">Project（資料夾）</label>
@@ -125,6 +125,9 @@
     </div>
     <div id="setting-new" class="side-tool" data-i18n-title="tool.new" title="新對話">
       <i class="material-icons">add_comment</i>
+    </div>
+    <div id="setting-rename" class="side-tool" data-i18n-title="tool.rename" title="改名／搬移此對話" style="display:none;">
+      <i class="material-icons">edit</i>
     </div>
     <div id="setting-download" class="side-tool" data-i18n-title="tool.download" title="匯出 Markdown" style="display:none;">
       <i class="material-icons">file_download</i>

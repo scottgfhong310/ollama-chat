@@ -19,6 +19,7 @@ light/dark 主題。輕量 Express 後端（Ollama proxy＋對話存取）。
 - **Prompt 索引**：subject 內所有 user 發言列成滑出面板，點一條就捲到那一問一答。
 - **自動命名**：沒開 subject 直接輸入，會以第一句自動命名、存進 `inbox`。
 - **Markdown 回覆**：fenced code 附複製鈕；資料內容永不翻譯、不改寫。
+- **改名／搬移**：側鍵改 subject 標題或搬到別的 project（名稱即路徑；目標已存在則拒絕、不覆蓋）。
 - **匯出**：任一 subject 匯出成 Markdown（`<subject>-yyyyMMddHHmmss.md`）。
 - **深連結**：`?project=<p>&subject=<s>` 直接開啟某組對話。
 - 三語 i18n、CSS 變數主題（預設 dark）、家族右側工具列。
@@ -54,6 +55,7 @@ public/upload/ollama-chat/chats/    # 對話內容（不進版控）
 | GET | `/api/ollama-chat/tree` | 掃 `chats/` → `{ ok, projects: [{ name, subjects }] }` |
 | GET | `/api/ollama-chat/subject?project=&name=` | 讀一個 subject → `{ ok, chat }` |
 | POST | `/api/ollama-chat/subject` | `{ project, name, chat }`——整檔覆寫存檔 |
+| POST | `/api/ollama-chat/rename` | `{ project, name, newProject, newName }`——改名／搬到別的 project（目標已存在回 409） |
 | POST | `/api/ollama-chat/delete` | `{ project, name }`——檔案移到 `chats/.bak/` 備份 |
 
 除成功的 `/chat` 串流（原樣直通 Ollama 的 NDJSON）外，所有端點皆用家族 `{ ok }` 信封。

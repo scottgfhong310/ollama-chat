@@ -171,7 +171,7 @@
       document.title = I18n.t('title.suffix');
     }
     // subject 相關側鍵只在有開啟對話時顯示（.side-tool 預設 flex，顯示要給明確值）
-    ['setting-prompts', 'setting-download', 'setting-delete'].forEach(function (id) {
+    ['setting-prompts', 'setting-rename', 'setting-download', 'setting-delete'].forEach(function (id) {
       document.getElementById(id).style.display = open ? 'flex' : 'none';
     });
     promptPath.textContent = open ? (state.project + '／' + state.subject) : '';
@@ -452,22 +452,53 @@
     el.classList.add('flash');
   }
 
-  /* ---------- 新對話 modal ---------- */
+  /* ---------- 新對話／改名搬移 modal（同一個 modal 兩種模式） ---------- */
+
+  var modalMode = 'new';   // 'new' | 'rename'
+
+  // 標題與確認鍵依模式換字：改 data-i18n 屬性再填字，語言切換時 I18n.apply 會自動跟上
+  function setModalMode(mode) {
+    modalMode = mode;
+    var title = document.getElementById('new-modal-title');
+    var confirmBtn = document.getElementById('new-create');
+    var tKey = mode === 'rename' ? 'modal.renameTitle' : 'modal.title';
+    var cKey = mode === 'rename' ? 'modal.rename' : 'modal.create';
+    title.setAttribute('data-i18n', tKey);
+    title.textContent = I18n.t(tKey);
+    confirmBtn.setAttribute('data-i18n', cKey);
+    confirmBtn.textContent = I18n.t(cKey);
+  }
 
   function openNewModal() {
+    setModalMode('new');
     document.getElementById('new-project').value = state.project || DEFAULT_PROJECT;
     document.getElementById('new-subject').value = '';
     M.updateTextFields();
     M.Modal.getInstance(document.getElementById('new-modal')).open();
   }
 
-  function createFromModal() {
+  function openRenameModal() {
+    if (!state.subject) return;
+    if (state.streaming) {
+      M.toast({ html: I18n.t('toast.busy'), classes: 'orange' });
+      return;
+    }
+    setModalMode('rename');
+    document.getElementById('new-project').value = state.project;
+    document.getElementById('new-subject').value = state.subject;
+    M.updateTextFields();
+    M.Modal.getInstance(document.getElementById('new-modal')).open();
+  }
+
+  function confirmModal() {
     var project = document.getElementById('new-project').value.trim();
     var subject = document.getElementById('new-subject').value.trim();
     if (!L.isSafeName(project) || !L.isSafeName(subject)) {
       M.toast({ html: I18n.t('toast.nameBad'), classes: 'orange' });
       return;
     }
+    if (modalMode === 'rename') return renameFromModal(project, subject);
+
     subject = L.uniqueName(subject, takenNames(project));
     state.project = project;
     state.subject = subject;
@@ -484,6 +515,34 @@
       M.toast({ html: I18n.t('toast.created', { n: project + '／' + subject }), classes: 'teal' });
     });
     inputEl.focus();
+  }
+
+  // 改名／搬 project：名稱即路徑（fs.rename），目標已存在由後端 409 擋下、不覆蓋
+  function renameFromModal(project, subject) {
+    var modal = M.Modal.getInstance(document.getElementById('new-modal'));
+    if (project === state.project && subject === state.subject) {
+      modal.close();
+      return;
+    }
+    L.renameSubject(state.project, state.subject, project, subject).then(function (d) {
+      var label = d.project + '／' + d.name;
+      state.project = d.project;
+      state.subject = d.name;
+      try {
+        history.replaceState({ project: d.project, subject: d.name }, '',
+          '?project=' + encodeURIComponent(d.project) + '&subject=' + encodeURIComponent(d.name));
+      } catch (e) {}
+      modal.close();
+      updateChrome();
+      M.toast({ html: I18n.t('toast.renamed', { n: label }), classes: 'teal' });
+      return refreshTree();
+    }).catch(function (err) {
+      if (err.message === 'target exists') {
+        M.toast({ html: I18n.t('toast.renameExists', { n: project + '／' + subject }), classes: 'orange' });
+      } else {
+        M.toast({ html: I18n.t('toast.renameFail', { m: err.message }), classes: 'red' });
+      }
+    });
   }
 
   /* ---------- 刪除 / 匯出 ---------- */
@@ -575,18 +634,25 @@
       if (inst) inst.open();
     });
     document.getElementById('setting-new').addEventListener('click', openNewModal);
+    document.getElementById('setting-rename').addEventListener('click', openRenameModal);
     document.getElementById('setting-download').addEventListener('click', exportCurrent);
     document.getElementById('setting-delete').addEventListener('click', deleteCurrent);
     document.getElementById('setting-mode').addEventListener('click', function () {
       applyTheme(state.theme === 'dark' ? 'light' : 'dark');
     });
     document.getElementById('setting-lang').addEventListener('click', cycleLang);
-    document.getElementById('new-create').addEventListener('click', createFromModal);
+    document.getElementById('new-create').addEventListener('click', function (e) {
+      e.preventDefault();   // <a href="#!">：不讓 hash 變化污染網址／觸發 popstate
+      confirmModal();
+    });
 
-    // 上一頁／下一頁：依 ?project=&subject= 重新載入
+    // 上一頁／下一頁：依 ?project=&subject= 重新載入。
+    // 注意：hash 變化（modal 內 href="#!" 的取消鍵等）也會觸發 popstate，
+    // 此時 search 對應的對話與目前 state 相同 → 忽略，避免無謂重載（改名後更會 404）。
     window.addEventListener('popstate', function () {
       var q = new URLSearchParams(location.search);
       var p = q.get('project'), s = q.get('subject');
+      if (p === state.project && s === state.subject) return;
       if (p && s) openSubject(p, s, true);
       else closeSubject();
     });

@@ -14,6 +14,8 @@
  *   GET  /api/ollama-chat/subject   → ?project=&name= 讀一個 subject JSON
  *   POST /api/ollama-chat/subject   → { project, name, chat } 整檔覆寫存檔
  *                                     （訊息追加型覆寫，不留 .bak——設計決議見 DESIGN.md）
+ *   POST /api/ollama-chat/rename    → { project, name, newProject, newName } 改名／搬 project
+ *                                     （fs.rename；目標已存在則 409 拒絕，不覆蓋）
  *   POST /api/ollama-chat/delete    → { project, name } 移到 chats/.bak/ 備份（不直接 unlink）
  *
  * 安全限制：
@@ -243,6 +245,38 @@ router.post('/subject', async (req, res) => {
     return res.json({ ok: true, project: loc.project, name: loc.name, updatedAt: clean.updatedAt });
   } catch (err) {
     console.error('[ollama-chat] POST /subject failed:', err);
+    return res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// POST /api/ollama-chat/rename — subject 改名／搬 project（名稱即路徑，改名＝fs.rename）
+router.post('/rename', async (req, res) => {
+  const { project, name, newProject, newName } = req.body || {};
+  const src = subjectPath(project, name);
+  const dst = subjectPath(newProject, newName);
+  if (!src || !dst) return res.status(400).json({ ok: false, error: 'invalid project/name' });
+  if (src.abs === dst.abs) {
+    return res.json({ ok: true, project: dst.project, name: dst.name });   // 無變化
+  }
+  try {
+    // 先驗來源存在（放在 mkdir 之前，免得 404 時留下空的目標 project 夾）
+    await fs.access(src.abs);
+
+    // 目標已存在 → 拒絕（不做同名覆寫，防吃掉另一組對話）
+    let exists = true;
+    try { await fs.access(dst.abs); } catch (e) { exists = false; }
+    if (exists) return res.status(409).json({ ok: false, error: 'target exists' });
+
+    await fs.mkdir(path.dirname(dst.abs), { recursive: true });
+    await fs.rename(src.abs, dst.abs);
+    // 原 project 夾清空後順手移除（非關鍵，失敗忽略）
+    try { await fs.rmdir(path.dirname(src.abs)); } catch (e) { /* ENOTEMPTY 等，忽略 */ }
+    console.log('[ollama-chat] POST /rename →',
+      src.project + '/' + src.name, '→', dst.project + '/' + dst.name);
+    return res.json({ ok: true, project: dst.project, name: dst.name });
+  } catch (err) {
+    if (err.code === 'ENOENT') return res.status(404).json({ ok: false, error: 'Not found' });
+    console.error('[ollama-chat] POST /rename failed:', err);
     return res.status(500).json({ ok: false, error: err.message });
   }
 });

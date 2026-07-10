@@ -16,7 +16,7 @@
 
 ```
 app.js                              # Express 入口：port 3000；/ → 302 /apps/ollama-chat/；dotenv
-routes/ollama-chat.js               # GET /models、POST /chat（串流直通）、GET /tree、GET|POST /subject、POST /delete
+routes/ollama-chat.js               # GET /models、POST /chat（串流直通）、GET /tree、GET|POST /subject、POST /rename、POST /delete
 public/apps/ollama-chat/            # 前端（服務於 /apps/ollama-chat/）
 ├─ index.html · ollama-chat.css · ollama-chat.js · ollama-chat-lib.js
 ├─ materialize-dark.css             # 家族共用（Materialize 深色；materialize.css 之後載入）
@@ -53,8 +53,11 @@ npm install && node app.js          # → http://localhost:3000/apps/ollama-chat
   防閃爍開機腳本同時 toggle `dark-mode`/`light-mode` class 驅動 `materialize-dark.css`（§5.1）。
 - **i18n**：`i18n.js` 引擎 + `locales/*.js`，`data-i18n` 屬性，預設 `zh-Hant`。對話內容是 **data，永不翻譯**。
 - **side-tool**：`#setting-menu`（左欄對話庫開合，`.active`＝開）/ `#setting-prompts`（prompt 清單 sidenav，開檔才顯示）/
-  `#setting-new`（新對話 modal）/ `#setting-download`（匯出 .md，開檔才顯示）/
+  `#setting-new`（新對話 modal）/ `#setting-rename`（改名／搬 project，同一 modal 的 rename 模式，開檔才顯示）/
+  `#setting-download`（匯出 .md，開檔才顯示）/
   `#setting-delete`（刪除，開檔才顯示、hover 轉紅）/ `#setting-mode` / `#setting-lang`。
+- **popstate 防護**：modal 的 `<a href="#!">` hash 變化也會觸發 popstate——handler 先比對
+  `?project/&subject` 與目前 state，相同就忽略（否則改名後會拿舊名重載 → 404）。
 - **複製件登記**（共用件改版時靠這份清單同步）：`materialize-dark.css` ←家族 repo、
   `side-tool.css` ←html-viewer（〔正統〕flex 版）、`thinking-dot.css` ←markdown-library（canonical）、
   `i18n.js` ←html-viewer（家族 30 份複製點之一）、`LICENSE` ←家族。

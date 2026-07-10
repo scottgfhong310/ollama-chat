@@ -12,7 +12,9 @@
 - **純檔案掃描、無 registry**：`GET /tree` 掃目錄建樹、逐檔讀 meta（updatedAt / model / messageCount）。
   單一真相來源＝檔案系統，不會失同步；規模小（數百 subject 內）掃描成本可忽略。
 - **名稱即路徑**：subject 標題直接當檔名（title-as-filename），JSON 內**不重複存** project/subject
-  ——避免「檔名 vs 內文標題」雙真相。代價：改名＝改檔名（v1 未做改名 UI，見 §6）。
+  ——避免「檔名 vs 內文標題」雙真相。代價：改名＝改檔名——由 `POST /rename`（`fs.rename`）承擔：
+  目標已存在回 409 拒絕（upsert 語意只留給存檔端點）、404 驗證放在 `mkdir` 之前（免留空目標夾）、
+  來源 project 夾清空後順手 `rmdir`。UI 與「新對話」共用同一個 modal（rename 模式預填現值）。
 - **prompt 清單是衍生資料**：由 `messages[]` 中 `role==='user'` 的項目即時推導（`promptIndex()`），
   不另外持久化——沒有可失同步的第二份清單。點擊以 `#msg-<index>` 錨點捲動＋flash 高亮。
 
@@ -56,7 +58,6 @@
 
 ## 6. v1 刻意不做
 
-- **subject 改名／搬 project**：＝檔案改名/搬移，v1 先用 Finder；後續可加 `POST /rename`（拒絕覆蓋既有目標檔）。
 - **語法上色（highlight.js）**：先有複製鈕；要加時注意主題同步（github-dark ↔ github）。
 - **system prompt／參數（temperature 等）**：資料格式已預留 `role:'system'`（後端白名單含之），UI 未出。
 - **附檔／多模態**：故省略家族上傳骨架（`routes/upload.js`＋multer，比照 user-admin 先例）；要餵檔案給模型時再補。
