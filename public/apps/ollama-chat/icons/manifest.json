@@ -5,8 +5,8 @@
   "start_url": "/apps/ollama-chat/",
   "scope": "/apps/ollama-chat/",
   "display": "standalone",
-  "background_color": "#13151b",
-  "theme_color": "#13151b",
+  "background_color": "#0f1115",
+  "theme_color": "#0f1115",
   "icons": [
     { "src": "./icon-192.png", "sizes": "192x192", "type": "image/png" },
     { "src": "./icon-512.png", "sizes": "512x512", "type": "image/png" },
