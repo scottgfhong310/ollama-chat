@@ -726,6 +726,7 @@ body.is-empty .empty-state {
   border-radius: 22%;                     /* 方形圓角徽章，露出 tile 本身的圓角、不被正圓約束 */
   border-color: transparent;              /* tile 自帶底色，收掉按鈕外框 */
   background: url('./icons/ollama-icon.svg') center / cover no-repeat;
+  margin-bottom: var(--tool-gap);         /* 第一顆 app-icon 徽章：與第二顆間距加倍（品牌／工具分區，§5.5）*/
 }
 
 [data-theme="light"] #setting-menu {
