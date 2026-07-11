@@ -3,6 +3,7 @@
   "short_name": "Ollama Chat",
   "description": "本地 Ollama 的全版面 Web 聊天介面（project → subject → prompt 索引）",
   "start_url": "/apps/ollama-chat/",
+  "scope": "/apps/ollama-chat/",
   "display": "standalone",
   "background_color": "#13151b",
   "theme_color": "#13151b",
