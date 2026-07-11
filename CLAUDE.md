@@ -23,7 +23,8 @@ public/apps/ollama-chat/            # 前端（服務於 /apps/ollama-chat/）
 ├─ side-tool.css                    # 〔正統〕flex .side-tools 版（§5.5）
 ├─ thinking-dot.css                 # 共用載入點 utility（與 markdown-library 同步、本份消費）
 ├─ i18n.js · locales/{zh-Hant,en,ja}.js
-├─ icons/                           # App icon（favicon.ico／svg 深淺兩版／png 16-512／manifest.json；相對路徑引用）
+├─ icons/                           # App icon；兩組 SVG：tile 版 ollama-icon(-light).svg（留白，給側鍵徽章＋apple-touch/PWA）
+│                                   #   與 favicon 版 favicon(-light).svg（放大標記，分頁小尺寸用）＋favicon.ico／png／manifest.json（相對路徑）
 public/upload/ollama-chat/chats/    # 對話內容：<project>/<subject>.json（不進版控）；.bak/ 收刪除備份
 public/upload/ollama-chat/prompts.json  # Prompt 樣板庫（全域單檔，不進版控）；備份在 ../.bak/
 .env（.env.example）                # OLLAMA_BASE_URL（預設 http://localhost:11434）、PORT
