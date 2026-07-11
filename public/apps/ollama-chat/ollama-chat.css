@@ -550,21 +550,6 @@ body.is-empty .empty-state {
   gap: 12px;
 }
 
-/* 輸入列前的 App icon（SVG 自帶圓角底；flex-end 底部與底線對齊，比照送出鈕）。
-   用 background-image 而非 <img>，深淺兩版跟著 data-theme 切換。 */
-.input-row .input-app-icon {
-  flex: 0 0 auto;
-  width: 36px;
-  height: 36px;
-  margin: 0 0 2px;
-  user-select: none;
-  background: url('./icons/ollama-icon.svg') center / contain no-repeat;
-}
-
-[data-theme="light"] .input-row .input-app-icon {
-  background-image: url('./icons/ollama-icon-light.svg');
-}
-
 /* Materialize .input-field 只調間距／寬度（§5.7：不動其視覺語言） */
 .input-row .input-field {
   flex: 1 1 auto;
@@ -733,6 +718,22 @@ body.is-empty .empty-state {
 
 @media (hover: none) {
   #template-nav .tpl-del { opacity: 1; }
+}
+
+/* ===== App icon 徽章：#setting-menu 用完整 tile 取代 folder_open（家族 §5.5 甲） =====
+   本 app 用完整 tile（自帶圓角底）＋background-image 隨 data-theme 換深淺版，非 mask。 */
+#setting-menu {
+  border-radius: 22%;                     /* 方形圓角徽章，露出 tile 本身的圓角、不被正圓約束 */
+  border-color: transparent;              /* tile 自帶底色，收掉按鈕外框 */
+  background: url('./icons/ollama-icon.svg') center / cover no-repeat;
+}
+
+[data-theme="light"] #setting-menu {
+  background-image: url('./icons/ollama-icon-light.svg');
+}
+
+#setting-menu.active {                     /* 對話庫開啟＝accent 環（tile 無 currentColor，改用外環指示） */
+  box-shadow: 0 0 0 2px var(--accent), 0 2px 6px rgba(0, 0, 0, 0.22);
 }
 
 /* ===== 側鍵：刪除為警示鍵（hover 轉紅，比照 side-tool.css 的 #setting-clear） ===== */

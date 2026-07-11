@@ -23,7 +23,7 @@ public/apps/ollama-chat/            # 前端（服務於 /apps/ollama-chat/）
 ├─ side-tool.css                    # 〔正統〕flex .side-tools 版（§5.5）
 ├─ thinking-dot.css                 # 共用載入點 utility（與 markdown-library 同步、本份消費）
 ├─ i18n.js · locales/{zh-Hant,en,ja}.js
-├─ icons/                           # App icon（favicon.ico／svg／png 16-512／manifest.json；相對路徑引用）
+├─ icons/                           # App icon（favicon.ico／svg 深淺兩版／png 16-512／manifest.json；相對路徑引用）
 public/upload/ollama-chat/chats/    # 對話內容：<project>/<subject>.json（不進版控）；.bak/ 收刪除備份
 public/upload/ollama-chat/prompts.json  # Prompt 樣板庫（全域單檔，不進版控）；備份在 ../.bak/
 .env（.env.example）                # OLLAMA_BASE_URL（預設 http://localhost:11434）、PORT
@@ -58,7 +58,10 @@ npm install && node app.js          # → http://localhost:3000/apps/ollama-chat
 - **主題**：CSS 變數 light/dark，**預設 dark**（`localStorage('ollama-chat-theme')`）；
   防閃爍開機腳本同時 toggle `dark-mode`/`light-mode` class 驅動 `materialize-dark.css`（§5.1）。
 - **i18n**：`i18n.js` 引擎 + `locales/*.js`，`data-i18n` 屬性，預設 `zh-Hant`。對話內容是 **data，永不翻譯**。
-- **side-tool**：`#setting-menu`（左欄對話庫開合，`.active`＝開）/ `#setting-prompts`（prompt 清單 sidenav，開檔才顯示）/
+- **App icon 徽章（家族 §5.5 甲）**：`#setting-menu` 用完整 app tile 取代 `folder_open`，兼作對話庫開合鈕＋品牌識別；
+  方形圓角（`border-radius:22%`）、`background-image` 隨 `data-theme` 換 `ollama-icon.svg`／`-light.svg`（非 mask，tile 自帶底色），
+  `.active`（樹開）用 `box-shadow` accent 外環（tile 無 currentColor，不吃 `.side-tool.active` 的邊色）。favicon/PWA 見 §5.5 乙末段。
+- **side-tool**：`#setting-menu`（App icon 徽章＝左欄對話庫開合，`.active`＝開）/ `#setting-prompts`（prompt 清單 sidenav，開檔才顯示）/
   `#setting-templates`（Prompt 樣板庫 sidenav，恆顯示）/
   `#setting-new`（新對話 modal）/ `#setting-download`（匯出 .md，開檔才顯示）/ `#setting-mode` / `#setting-lang`。
 - **Prompt 樣板庫**：另一個儲存面（全域單檔 `prompts.json`，與對話分開）；owner registry 式

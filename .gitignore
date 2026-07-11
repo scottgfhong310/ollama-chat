@@ -22,3 +22,6 @@ Thumbs.db
 # Prompt 樣板庫（個人資料）與其備份
 /public/upload/ollama-chat/prompts.json
 /public/upload/ollama-chat/.bak/
+
+# 來源素材（不進版控）
+*.zip

@@ -83,7 +83,6 @@
 
     <footer class="chat-input">
       <div class="input-row">
-        <span class="input-app-icon" aria-hidden="true"></span>
         <!-- Materialize 原生 .input-field + 浮動 label（§5.7）；深色由 materialize-dark.css 處理 -->
         <div class="input-field">
           <textarea id="chat-text" class="materialize-textarea" rows="1"></textarea>
@@ -158,9 +157,8 @@
 
   <!-- ===== 右側工具列（flex 容器自動堆疊，見家族 §5.5） ===== -->
   <div class="side-tools">
-    <div id="setting-menu" class="side-tool" data-i18n-title="tool.menu" title="對話庫">
-      <i class="material-icons">folder_open</i>
-    </div>
+    <!-- App icon 徽章（家族 §5.5 甲）：用完整 tile 取代 folder_open，兼作對話庫開合鈕與品牌識別 -->
+    <div id="setting-menu" class="side-tool" role="img" data-i18n-title="tool.menu" title="對話庫"></div>
     <div id="setting-prompts" class="side-tool" data-i18n-title="tool.prompts" title="Prompt 清單" style="display:none;">
       <i class="material-icons">toc</i>
     </div>
