@@ -164,14 +164,15 @@
     return m;
   }
 
-  // prompt 索引：該對話所有 user 發言（index 為 messages 內的原始位置，供跳轉）
+  // prompt 索引：該對話所有 user 發言（index 為 messages 內的原始位置，供跳轉）。
+  // hidden＝該 prompt 被標記從索引隱藏（訊息仍在對話中）；由 UI 決定顯示與否。
   function promptIndex(messages) {
     var out = [];
     (messages || []).forEach(function (m, i) {
       if (!m || m.role !== 'user') return;
       var text = String(m.content || '').split('\n')[0].trim();
       if (text.length > 120) text = text.slice(0, 120) + '…';
-      out.push({ index: i, ts: m.ts || '', text: text });
+      out.push({ index: i, ts: m.ts || '', text: text, hidden: m.hidden === true });
     });
     return out;
   }

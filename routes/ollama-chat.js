@@ -95,6 +95,7 @@ function cleanChat(chat) {
     const msg = { role: m.role, content: m.content };
     if (typeof m.ts === 'string') msg.ts = m.ts;
     if (typeof m.model === 'string') msg.model = m.model;
+    if (m.hidden === true) msg.hidden = true;   // 從 prompt 索引隱藏（僅存 true，false 免存）
     messages.push(msg);
   }
   const clean = { messages };

@@ -443,18 +443,56 @@
 
   /* ---------- prompt 清單（右側 sidenav） ---------- */
 
+  var showHiddenPrompts = false;   // 是否展開已隱藏的 prompt（僅記憶體、每 session）
+
+  function promptRow(it, n, hidden) {
+    var icon = hidden ? 'visibility' : 'visibility_off';
+    var title = _.escape(I18n.t(hidden ? 'prompt.unhide' : 'prompt.hide'));
+    return '<li><a href="#!" class="prompt-item' + (hidden ? ' is-hidden' : '') + '" data-index="' + it.index + '">' +
+      '<span class="prompt-no">' + (n === null ? '' : (n + 1) + '.') + '</span>' +
+      '<span class="prompt-text">' + _.escape(it.text) + '</span>' +
+      '<i class="material-icons prompt-hide" data-index="' + it.index + '" title="' + title + '">' + icon + '</i>' +
+      '</a></li>';
+  }
+
   function renderPromptList() {
     var items = L.promptIndex((state.chat && state.chat.messages) || []);
+    var visible = items.filter(function (it) { return !it.hidden; });
+    var hidden = items.filter(function (it) { return it.hidden; });
+
     if (!items.length) {
       promptList.innerHTML = '<div class="prompt-empty">' + I18n.t('prompt.empty') + '</div>';
       return;
     }
-    promptList.innerHTML = items.map(function (it, n) {
-      return '<li><a href="#!" class="prompt-item" data-index="' + it.index + '">' +
-        '<span class="prompt-no">' + (n + 1) + '.</span>' +
-        '<span class="prompt-text">' + _.escape(it.text) + '</span>' +
+
+    var html = '';
+    // 頂端：有隱藏項才出現的展開/收合切換
+    if (hidden.length) {
+      html += '<li><a href="#!" id="prompt-toggle-hidden" class="prompt-toggle">' +
+        '<i class="material-icons">' + (showHiddenPrompts ? 'expand_less' : 'visibility_off') + '</i>' +
+        '<span>' + I18n.t(showHiddenPrompts ? 'prompt.hideHidden' : 'prompt.showHidden', { n: hidden.length }) + '</span>' +
         '</a></li>';
-    }).join('');
+    }
+    // 可見列
+    html += visible.map(function (it, n) { return promptRow(it, n, false); }).join('');
+    // 全部被隱藏且未展開時，給個提示
+    if (!visible.length && !showHiddenPrompts) {
+      html += '<div class="prompt-empty">' + I18n.t('prompt.allHidden') + '</div>';
+    }
+    // 展開的隱藏列
+    if (showHiddenPrompts) {
+      html += hidden.map(function (it) { return promptRow(it, null, true); }).join('');
+    }
+    promptList.innerHTML = html;
+  }
+
+  // 設定某 prompt 的隱藏狀態（存進訊息旗標、持久化、重繪索引）
+  function setPromptHidden(index, hide) {
+    var m = state.chat && state.chat.messages && state.chat.messages[index];
+    if (!m || m.role !== 'user') return;
+    if (hide) m.hidden = true; else delete m.hidden;
+    renderPromptList();
+    persist();
   }
 
   function jumpToMessage(index) {
@@ -739,7 +777,20 @@
       addTemplateFromInput();
     });
 
-    // prompt 清單
+    // prompt 清單：隱藏/還原 icon（先攔，stopPropagation 不觸發跳轉）
+    $(document).on('click', '#prompt-list .prompt-hide', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      var li = $(this).closest('a.prompt-item');
+      setPromptHidden(Number($(this).data('index')), !li.hasClass('is-hidden'));
+    });
+    // 展開/收合已隱藏
+    $(document).on('click', '#prompt-list #prompt-toggle-hidden', function (e) {
+      e.preventDefault();
+      showHiddenPrompts = !showHiddenPrompts;
+      renderPromptList();
+    });
+    // prompt 清單：點列跳到對話中該處
     $(document).on('click', '#prompt-list a.prompt-item', function (e) {
       e.preventDefault();
       var idx = Number($(this).data('index'));

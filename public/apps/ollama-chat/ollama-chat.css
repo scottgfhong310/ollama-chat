@@ -680,6 +680,51 @@ body.is-empty .empty-state {
   font-size: .85rem;
 }
 
+/* prompt 隱藏 icon：hover 該列才現身；觸控恆顯 */
+#prompt-list .prompt-hide {
+  flex: 0 0 auto;
+  margin-left: auto;
+  font-size: 18px;
+  color: var(--muted);
+  opacity: 0;
+  transition: opacity .12s ease, color .12s ease;
+}
+
+#prompt-list li>a:hover .prompt-hide,
+#prompt-list .prompt-item.is-hidden .prompt-hide {
+  opacity: 1;
+}
+
+#prompt-list .prompt-hide:hover {
+  color: var(--accent);
+}
+
+@media (hover: none) {
+  #prompt-list .prompt-hide { opacity: 1; }
+}
+
+/* 已隱藏的 prompt 列（展開時）：淡化 + 刪節線提示 */
+#prompt-list .prompt-item.is-hidden .prompt-text {
+  color: var(--muted);
+  text-decoration: line-through;
+  opacity: .75;
+}
+
+/* 頂端「顯示/收合隱藏」切換列 */
+#prompt-list .prompt-toggle {
+  color: var(--muted) !important;
+  font-size: .82rem;
+}
+
+#prompt-list .prompt-toggle .material-icons {
+  font-size: 18px;
+  color: var(--muted) !important;
+}
+
+#prompt-list .prompt-toggle:hover {
+  color: var(--accent) !important;
+}
+
 /* ===== Prompt 樣板庫（#template-nav；列版型沿用 sidenav li>a） ===== */
 #template-nav li>a .material-icons {
   font-size: 19px;   /* icon 配合樣板列內容，比預設 24px 收小 */
