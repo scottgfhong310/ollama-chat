@@ -244,12 +244,20 @@
           '<i class="material-icons subj-more" title="' + _.escape(I18n.t('tool.subjActions')) + '">more_vert</i>' +
           '</li>';
       }).join('');
+      // inbox＝未歸類 bucket，受保護：不出現改名／刪除動作（見 DESIGN.md project 一級公民）
+      var actions = (p.name === DEFAULT_PROJECT) ? '' :
+        '<span class="proj-actions">' +
+        '<i class="material-icons proj-act proj-act-edit" title="' + _.escape(I18n.t('proj.rename')) + '">edit</i>' +
+        '<i class="material-icons proj-act proj-act-del" title="' + _.escape(I18n.t('proj.delete')) + '">delete</i>' +
+        '</span>' +
+        '<i class="material-icons proj-more" title="' + _.escape(I18n.t('proj.actions')) + '">more_vert</i>';
       return '<div class="proj' + (state.collapsed[p.name] ? ' collapsed' : '') + '" data-project="' + _.escape(p.name) + '">' +
         '<div class="proj-head">' +
         '<i class="material-icons">folder</i>' +
         '<span class="proj-name">' + _.escape(p.name) + '</span>' +
         '<span class="count">' + p.subjects.length + '</span>' +
         '<i class="material-icons caret">expand_more</i>' +
+        actions +
         '</div>' +
         '<ul class="subjects">' + subjects + '</ul>' +
         '</div>';
@@ -265,13 +273,9 @@
   }
 
   /* ---------- 新對話／改名 modal：Project 欄位（Materialize 原生 <select>） ----------
-     用 Materialize <select>（M.FormSelect）而非原生 <datalist>——datalist 的彈出層在
-     Materialize modal 裡常常不彈出/被裁掉，但 Materialize Select 的下拉在同一個 modal 裡
-     顯示正常（實測，見家族 §5.11）。純 <select> 只能挑既有、不能自由輸入，所以清單末項固定
-     放一個「＋ 新 project…」哨兵 option，選了才展開下面的自訂輸入框——兼顧「挑既有」與「建
-     新資料夾」。哨兵值含 '/'，sanitizeName 必拒，保證永遠不會與任何真實 project 名相同。 */
-
-  var NEW_PROJECT_SENTINEL = '/+new-project+/';
+     用 Materialize <select>（M.FormSelect）純挑既有 project（含 inbox）——建立新 project 是
+     project 管理的事、走左欄「＋ 新 project」，不在這裡順手建（見 DESIGN.md project 一級公民）。
+     Materialize Select 的下拉在 modal 裡顯示正常（實測，家族 §5.11）；別用原生 <datalist>。 */
 
   // 依對話庫樹重建 select 的 options；selected 為要預選的 project（rename＝目前所在，new＝預設）。
   // selected 不在樹裡時補進去（new 模式預設 inbox，但沒任何對話時 inbox 夾尚不存在＝不在樹裡）。
@@ -279,47 +283,13 @@
     var sel = document.getElementById('new-project-select');
     var names = state.tree.map(function (p) { return p.name; });
     if (selected && names.indexOf(selected) === -1) names.unshift(selected);
-    var opts = names.map(function (n) {
+    sel.innerHTML = names.map(function (n) {
       return '<option value="' + _.escape(n) + '"' + (n === selected ? ' selected' : '') + '>' +
         _.escape(n) + '</option>';
-    });
-    opts.push('<option value="' + NEW_PROJECT_SENTINEL + '">' +
-      _.escape(I18n.t('modal.newProjectOption')) + '</option>');
-    sel.innerHTML = opts.join('');
+    }).join('');
     var inst = M.FormSelect.getInstance(sel);
     if (inst) inst.destroy();   // 每次開啟樹可能已變，重建才不會殘留舊選項
     M.FormSelect.init(sel);
-    hideCustomProject();
-  }
-
-  function showCustomProject() {
-    document.getElementById('new-project-custom-wrap').style.display = '';
-    var input = document.getElementById('new-project-custom');
-    input.value = '';
-    M.updateTextFields();
-    input.focus();
-  }
-
-  function hideCustomProject() {
-    document.getElementById('new-project-custom-wrap').style.display = 'none';
-  }
-
-  // 選到哨兵＝展開自訂輸入框；選到真實 project＝收起。
-  function onProjectSelectChange() {
-    if (document.getElementById('new-project-select').value === NEW_PROJECT_SENTINEL) {
-      showCustomProject();
-    } else {
-      hideCustomProject();
-    }
-  }
-
-  // 目前生效的 project：選哨兵時取自訂輸入框的值，否則取 select 的值。
-  function selectedProject() {
-    var sel = document.getElementById('new-project-select');
-    if (sel.value === NEW_PROJECT_SENTINEL) {
-      return document.getElementById('new-project-custom').value.trim();
-    }
-    return sel.value;
   }
 
   // 該 project 下已存在的 subject 名（避免自動命名整檔覆寫掉既有對話）
@@ -768,7 +738,7 @@
   }
 
   function confirmModal() {
-    var project = selectedProject();
+    var project = document.getElementById('new-project-select').value;
     var subject = document.getElementById('new-subject').value.trim();
     if (!L.isSafeName(project, L.PROJECT_NAME_MAX)) {
       M.toast({ html: I18n.t('toast.nameBad'), classes: 'orange' });
@@ -862,6 +832,82 @@
     var md = L.exportMarkdown(state.project, state.subject, state.chat);
     L.downloadText(L.stampFilename(state.subject + '.md'), md);
     setIconDone(document.getElementById('setting-download'));
+  }
+
+  /* ---------- Project 管理（建立／改名／刪除；一級公民） ---------- */
+
+  var projectModalMode = 'new';   // 'new' | 'rename'
+  var projectRenameTarget = null;
+
+  // 單一名稱輸入的小 modal，建立空 project 與改 project 名共用（mode 換標題/確認鍵字）
+  function openProjectModal(mode, name) {
+    projectModalMode = mode;
+    projectRenameTarget = (mode === 'rename') ? name : null;
+    var title = document.getElementById('project-modal-title');
+    var btn = document.getElementById('project-create');
+    var tKey = mode === 'rename' ? 'proj.renameTitle' : 'proj.newTitle';
+    var cKey = mode === 'rename' ? 'modal.rename' : 'modal.create';
+    title.setAttribute('data-i18n', tKey); title.textContent = I18n.t(tKey);
+    btn.setAttribute('data-i18n', cKey); btn.textContent = I18n.t(cKey);
+    var input = document.getElementById('project-name');
+    input.value = (mode === 'rename') ? name : '';
+    M.updateTextFields();
+    M.Modal.getInstance(document.getElementById('project-modal')).open();
+    input.focus();
+  }
+
+  function confirmProjectModal() {
+    var name = document.getElementById('project-name').value.trim();
+    var modal = M.Modal.getInstance(document.getElementById('project-modal'));
+    if (!L.isSafeName(name, L.PROJECT_NAME_MAX)) {
+      M.toast({ html: I18n.t('toast.nameBad'), classes: 'orange' });
+      return;
+    }
+    if (projectModalMode === 'rename') {
+      var src = projectRenameTarget;
+      if (!src || src === name) { modal.close(); return; }
+      L.renameProject(src, name).then(function (d) {
+        // 動到目前開啟對話所在的 project → 同步 state（subject 的 ?uid= 網址不受影響）
+        if (state.project === src) { state.project = d.name; updateChrome(); }
+        modal.close();
+        M.toast({ html: I18n.t('toast.projRenamed', { n: d.name }), classes: 'teal' });
+        return refreshTree();
+      }).catch(function (err) { projModalError(err); });
+    } else {
+      L.createProject(name).then(function (d) {
+        modal.close();
+        M.toast({ html: I18n.t('toast.projCreated', { n: d.name }), classes: 'teal' });
+        return refreshTree();
+      }).catch(function (err) { projModalError(err); });
+    }
+  }
+
+  function projModalError(err) {
+    if (err.message === 'project exists' || err.message === 'target exists') {
+      M.toast({ html: I18n.t('toast.projExists'), classes: 'orange' });
+    } else if (err.message === 'protected project') {
+      M.toast({ html: I18n.t('toast.projProtected'), classes: 'orange' });
+    } else {
+      M.toast({ html: I18n.t('toast.projFail', { m: err.message }), classes: 'red' });
+    }
+  }
+
+  // 刪除整個 project（含所有 subjects，搬 .bak）。破壞性——先 confirm（沿用 subject 刪除的
+  // 原生 confirm 風格，訊息帶對話數）；刪到目前開啟對話所在的 project 就收畫面。
+  function deleteProjectRow(name) {
+    var hit = state.tree.filter(function (p) { return p.name === name; })[0];
+    var count = hit ? hit.subjects.length : 0;
+    var openInside = (state.project === name);
+    if (state.streaming && openInside) {
+      M.toast({ html: I18n.t('toast.busy'), classes: 'orange' });
+      return;
+    }
+    if (!confirm(I18n.t('confirm.deleteProject', { n: name, c: count }))) return;
+    L.deleteProject(name).then(function () {
+      M.toast({ html: I18n.t('toast.projDeleted', { n: name }), classes: 'teal' });
+      if (openInside) closeSubject();
+      return refreshTree();
+    }).catch(function (err) { projModalError(err); });
   }
 
   /* ---------- 語系（i18n） ---------- */
@@ -1016,8 +1062,32 @@
       confirmModal();
     });
 
-    // Project <select>：選到「＋ 新 project…」哨兵就展開自訂輸入框，否則收起（見 onProjectSelectChange）
-    document.getElementById('new-project-select').addEventListener('change', onProjectSelectChange);
+    // ── Project 管理（一級公民）：新增鈕、列動作、modal 確認鍵 ──
+    document.getElementById('tree-new-project').addEventListener('click', function () {
+      openProjectModal('new');
+    });
+    document.getElementById('project-create').addEventListener('click', function (e) {
+      e.preventDefault();
+      confirmProjectModal();
+    });
+    // 每個 project 列尾端的 more_vert / edit / delete（inbox 列不渲染這些，見 renderTree）
+    $(document).on('click', '#tree .proj-more', function (e) {
+      e.stopPropagation();   // 不觸發 proj-head 的收合
+      var head = $(this).closest('.proj-head');
+      var wasExpanded = head.hasClass('expanded');
+      $('#tree .proj-head.expanded').removeClass('expanded');
+      head.toggleClass('expanded', !wasExpanded);
+    });
+    $(document).on('click', '#tree .proj-act-edit', function (e) {
+      e.stopPropagation();
+      openProjectModal('rename', $(this).closest('.proj').attr('data-project'));
+      $(this).closest('.proj-head').removeClass('expanded');
+    });
+    $(document).on('click', '#tree .proj-act-del', function (e) {
+      e.stopPropagation();
+      deleteProjectRow($(this).closest('.proj').attr('data-project'));
+      $(this).closest('.proj-head').removeClass('expanded');
+    });
 
     // 上一頁／下一頁：優先看 ?uid=，沒有才退回舊格式 ?project=&subject=（相容舊分頁/書籤）。
     // 注意：hash 變化（modal 內 href="#!" 的取消鍵等）也會觸發 popstate，
@@ -1051,6 +1121,7 @@
       onCloseEnd: function () { document.body.classList.remove('sidenav-open'); }
     });
     M.Modal.init(document.getElementById('new-modal'));
+    M.Modal.init(document.getElementById('project-modal'));
     M.FormSelect.init(modelSelect);
 
     var saved = 'dark';

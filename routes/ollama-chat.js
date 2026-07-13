@@ -26,6 +26,12 @@
  *                                     而非明文 project/subject 就不怕改名的原因，見 DESIGN.md §1.2）
  *   POST /api/ollama-chat/delete    → { project, name } 移到 chats/.bak/ 備份（不直接 unlink）
  *
+ *   project 一級公民（資料夾＋marker；空 project 允許存在、不自動清除）：
+ *   POST /api/ollama-chat/project        → { name } 建立空 project（mkdir + marker）；已存在 409
+ *   POST /api/ollama-chat/project/rename → { name, newName } fs.rename 資料夾（subjects＋uid 全跟著走）；
+ *                                          inbox 保護；目標存在 409
+ *   POST /api/ollama-chat/project/delete → { name } 整夾搬 chats/.bak/；inbox 保護（破壞性，前端需確認）
+ *
  * Prompt 樣板庫（全域單檔 prompts.json；owner registry 式整清單覆寫，§3.5 精神）：
  *   GET  /api/ollama-chat/prompts   → { ok, prompts: [{ content, ts, title? }] }
  *   POST /api/ollama-chat/prompts   → { prompts: [...] } 整清單覆寫（覆寫前 .bak）
@@ -60,6 +66,11 @@ const BAK_DIR = path.join(CHATS_DIR, '.bak');
 // project 是裸資料夾，本身沒有檔案可掛 id——比照 subject 把 uid 存進「自己的檔案」這個
 // 既有模式，給它一個同目錄下的隱藏 marker 檔（isVisible 已濾掉 . 開頭，不會被誤認成 subject）。
 const PROJECT_MARKER = '.project.json';
+
+// inbox＝「未歸到 project 的 subject」收容處（＝空 project 值的具體化）；是結構性 bucket，不是
+// 使用者資料夾，因此保護不給改名/刪除，且在樹/清單排序固定墊底（見 GET /tree 排序、DESIGN.md）。
+const DEFAULT_PROJECT = 'inbox';
+const PROTECTED_PROJECTS = [DEFAULT_PROJECT];
 
 // Prompt 樣板庫：全域單檔（另一個儲存面，與對話分開）；備份收 UPLOAD_ROOT/.bak/
 const PROMPTS_FILE = path.join(UPLOAD_ROOT, 'prompts.json');
@@ -236,20 +247,13 @@ async function ensureProjectUid(projDirAbs) {
   return uid;
 }
 
-// project 夾清空後嘗試移除（rename/delete 搬走最後一個 subject 時）。多了 marker 檔以後，
-// 「清空」要連 marker 一併算——只剩 marker 就先刪它再 rmdir，維持「project 隨最後一個 subject
-// 離開而消失、uid 跟著失效」這個改動前就有的行為，不留下只有 marker 的空殼 project。非關鍵操作，
-// 失敗（含目錄仍有其他 subject）一律忽略。
-async function rmEmptyProjectDir(dir) {
-  try {
-    const entries = await fs.readdir(dir);
-    if (entries.length === 0) {
-      await fs.rmdir(dir);
-    } else if (entries.length === 1 && entries[0] === PROJECT_MARKER) {
-      await fs.unlink(path.join(dir, PROJECT_MARKER));
-      await fs.rmdir(dir);
-    }
-  } catch (e) { /* ENOTEMPTY（還有其他 subject）等，忽略 */ }
+// project = 資料夾（一級公民）。解析 project 名稱 → 絕對資料夾路徑；不合法回 null。
+// 落點檢查：必須是 CHATS_DIR 的「直接子目錄」（sanitizeName 已擋 / \ .. 等，這裡再保一層）。
+function projectDir(name) {
+  const p = sanitizeName(name, PROJECT_NAME_MAX);
+  if (!p) return null;
+  const abs = path.join(CHATS_DIR, p);
+  return insideChats(abs) && path.dirname(abs) === CHATS_DIR ? { name: p, abs } : null;
 }
 
 /* ---------- Ollama proxy ---------- */
@@ -427,7 +431,12 @@ router.get('/tree', async (req, res) => {
       const uid = await ensureProjectUid(projDir);
       projects.push({ name: dir.name, uid, subjects });
     }
-    projects.sort((a, b) => a.name.localeCompare(b.name));
+    // user projects 照名稱排；inbox（未歸類 bucket）固定墊底
+    projects.sort((a, b) => {
+      if (a.name === DEFAULT_PROJECT) return 1;
+      if (b.name === DEFAULT_PROJECT) return -1;
+      return a.name.localeCompare(b.name);
+    });
     return res.json({ ok: true, projects });
   } catch (err) {
     console.error('[ollama-chat] GET /tree failed:', err);
@@ -505,8 +514,8 @@ router.post('/rename', async (req, res) => {
 
     await fs.mkdir(path.dirname(dst.abs), { recursive: true });
     await fs.rename(src.abs, dst.abs);
-    // 原 project 夾清空後順手移除（含 marker，見 rmEmptyProjectDir）
-    await rmEmptyProjectDir(path.dirname(src.abs));
+    // project 是一級公民：搬走最後一個 subject 後「不」自動刪空 project——留著由使用者
+    // 明確 delete project（見 POST /project/delete）。
     console.log('[ollama-chat] POST /rename →',
       src.project + '/' + src.name, '→', dst.project + '/' + dst.name);
     return res.json({ ok: true, project: dst.project, name: dst.name });
@@ -526,13 +535,78 @@ router.post('/delete', async (req, res) => {
     await fs.mkdir(BAK_DIR, { recursive: true });
     const bak = path.join(BAK_DIR, loc.project + '__' + loc.name + '-' + timestamp() + '.json.bak');
     await fs.rename(loc.abs, bak);
-    // project 夾清空後順手移除（含 marker，見 rmEmptyProjectDir）
-    await rmEmptyProjectDir(path.dirname(loc.abs));
+    // project 是一級公民：刪掉最後一個 subject 後「不」自動刪空 project（見 POST /rename 註解）。
     console.log('[ollama-chat] POST /delete →', loc.project + '/' + loc.name, '→ .bak');
     return res.json({ ok: true, project: loc.project, name: loc.name });
   } catch (err) {
     if (err.code === 'ENOENT') return res.status(404).json({ ok: false, error: 'Not found' });
     console.error('[ollama-chat] POST /delete failed:', err);
+    return res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+/* ---------- Project 一級公民（建立／改名／刪除；資料夾＋.project.json marker） ---------- */
+
+// POST /api/ollama-chat/project — 建立空 project（mkdir + 寫 marker）；已存在回 409
+router.post('/project', async (req, res) => {
+  const loc = projectDir((req.body || {}).name);
+  if (!loc) return res.status(400).json({ ok: false, error: 'invalid project name' });
+  try {
+    let exists = true;
+    try { await fs.access(loc.abs); } catch (e) { exists = false; }
+    if (exists) return res.status(409).json({ ok: false, error: 'project exists' });
+    await fs.mkdir(loc.abs, { recursive: true });
+    const uid = crypto.randomUUID();
+    await fs.writeFile(path.join(loc.abs, PROJECT_MARKER),
+      JSON.stringify({ uid, createdAt: timestamp() }, null, 2) + '\n', 'utf8');
+    console.log('[ollama-chat] POST /project →', loc.name);
+    return res.json({ ok: true, name: loc.name, uid });
+  } catch (err) {
+    console.error('[ollama-chat] POST /project failed:', err);
+    return res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// POST /api/ollama-chat/project/rename — 改資料夾名（裡面 subjects＋marker/uid 全跟著走，
+// 一次 fs.rename；subject 內容沒動 → subject 的 ?uid= 深連結不受影響）。inbox 保護、目標存在 409。
+router.post('/project/rename', async (req, res) => {
+  const { name, newName } = req.body || {};
+  const src = projectDir(name);
+  const dst = projectDir(newName);
+  if (!src || !dst) return res.status(400).json({ ok: false, error: 'invalid project name' });
+  if (PROTECTED_PROJECTS.includes(src.name)) return res.status(400).json({ ok: false, error: 'protected project' });
+  if (src.abs === dst.abs) return res.json({ ok: true, name: dst.name });   // 無變化
+  try {
+    await fs.access(src.abs);   // 來源要在
+    let exists = true;
+    try { await fs.access(dst.abs); } catch (e) { exists = false; }
+    if (exists) return res.status(409).json({ ok: false, error: 'target exists' });
+    await fs.rename(src.abs, dst.abs);
+    console.log('[ollama-chat] POST /project/rename →', src.name, '→', dst.name);
+    return res.json({ ok: true, name: dst.name });
+  } catch (err) {
+    if (err.code === 'ENOENT') return res.status(404).json({ ok: false, error: 'Not found' });
+    console.error('[ollama-chat] POST /project/rename failed:', err);
+    return res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// POST /api/ollama-chat/project/delete — 整個資料夾搬到 .bak/（含所有 subjects＋marker，可救回）。
+// inbox 保護。破壞性（一次多組對話）——前端需先確認。
+router.post('/project/delete', async (req, res) => {
+  const loc = projectDir((req.body || {}).name);
+  if (!loc) return res.status(400).json({ ok: false, error: 'invalid project name' });
+  if (PROTECTED_PROJECTS.includes(loc.name)) return res.status(400).json({ ok: false, error: 'protected project' });
+  try {
+    await fs.access(loc.abs);   // 來源要在
+    await fs.mkdir(BAK_DIR, { recursive: true });
+    const bak = path.join(BAK_DIR, loc.name + '-' + timestamp());
+    await fs.rename(loc.abs, bak);
+    console.log('[ollama-chat] POST /project/delete →', loc.name, '→ .bak');
+    return res.json({ ok: true, name: loc.name });
+  } catch (err) {
+    if (err.code === 'ENOENT') return res.status(404).json({ ok: false, error: 'Not found' });
+    console.error('[ollama-chat] POST /project/delete failed:', err);
     return res.status(500).json({ ok: false, error: err.message });
   }
 });

@@ -52,7 +52,9 @@
         <span data-i18n="tree.header">對話庫</span>
         <span class="path">/upload/ollama-chat/chats</span>
       </span>
-      <i class="material-icons tree-collapse-all" id="tree-collapse-all"
+      <i class="material-icons tree-header-btn" id="tree-new-project"
+         data-i18n-title="proj.new" title="新 project">create_new_folder</i>
+      <i class="material-icons tree-header-btn" id="tree-collapse-all"
          data-i18n-title="tool.collapseAll" title="全部收合">unfold_less</i>
     </div>
     <div id="tree"></div>
@@ -144,15 +146,10 @@
     <div class="modal-content">
       <h5 id="new-modal-title" data-i18n="modal.title">新對話</h5>
       <!-- Project：Materialize 原生 <select>（家族 §5.7；下拉在 modal 內顯示正常，見 §5.11）。
-           options 由控制器依對話庫樹動態塞入，末項固定是「＋ 新 project…」哨兵，選了才展開下面的
-           自訂輸入框——兼顧「挑既有」與「建新資料夾」（純 select 無法自由輸入）。 -->
+           純挑既有 project（含 inbox）；建立新 project 走左欄「＋ 新 project」（project 一級公民）。 -->
       <div class="input-field">
         <select id="new-project-select"></select>
         <label data-i18n="modal.project">Project（資料夾）</label>
-      </div>
-      <div class="input-field" id="new-project-custom-wrap" style="display:none;">
-        <input id="new-project-custom" type="text" maxlength="255" autocomplete="off" />
-        <label for="new-project-custom" data-i18n="modal.newProjectName">新 project 名稱</label>
       </div>
       <div class="input-field">
         <input id="new-subject" type="text" maxlength="80" />
@@ -163,6 +160,21 @@
     <div class="modal-footer">
       <a href="#!" class="modal-close btn-flat" data-i18n="modal.cancel">取消</a>
       <a href="#!" id="new-create" class="btn-flat" data-i18n="modal.create">建立</a>
+    </div>
+  </div>
+
+  <!-- ===== Project Modal（建立空 project／改 project 名共用，單一名稱輸入） ===== -->
+  <div id="project-modal" class="modal">
+    <div class="modal-content">
+      <h5 id="project-modal-title" data-i18n="proj.newTitle">新 project</h5>
+      <div class="input-field">
+        <input id="project-name" type="text" maxlength="255" autocomplete="off" />
+        <label for="project-name" data-i18n="modal.project">Project（資料夾）</label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <a href="#!" class="modal-close btn-flat" data-i18n="modal.cancel">取消</a>
+      <a href="#!" id="project-create" class="btn-flat" data-i18n="modal.create">建立</a>
     </div>
   </div>
 

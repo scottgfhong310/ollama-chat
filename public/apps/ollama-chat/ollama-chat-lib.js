@@ -55,6 +55,9 @@
  *   OllamaChatLib.saveSubject(project, name, chat) → Promise<{updatedAt}>
  *   OllamaChatLib.renameSubject(project, name, newProject, newName) → Promise<{project,name}>
  *   OllamaChatLib.deleteSubject(project, name)  → Promise<{ok}>
+ *   OllamaChatLib.createProject(name)           → Promise<{name,uid}>   建立空 project（409＝已存在）
+ *   OllamaChatLib.renameProject(name, newName)  → Promise<{name}>       改資料夾名（inbox 保護、409＝目標存在）
+ *   OllamaChatLib.deleteProject(name)           → Promise<{name}>       整夾搬 .bak（inbox 保護；破壞性）
  *   OllamaChatLib.getPrompts()                  → Promise<Array<{content,ts,title?}>>  樣板庫
  *   OllamaChatLib.savePrompts(prompts)          → Promise<{count}>  整清單覆寫
  *   OllamaChatLib.promptTitle(p)                → string  樣板顯示名（title 或內容首行）
@@ -78,6 +81,7 @@
   var DELETE_API = API_BASE + '/delete';
   var RENAME_API = API_BASE + '/rename';
   var PROMPTS_API = API_BASE + '/prompts';
+  var PROJECT_API = API_BASE + '/project';
 
   /* ---------- 工具 ---------- */
 
@@ -264,6 +268,23 @@
     });
   }
 
+  /* ---------- Project 一級公民（建立／改名／刪除；資料夾層級） ---------- */
+
+  // 建立空 project。已存在時後端回 409 { error:'project exists' }。
+  function createProject(name) {
+    return postJson(PROJECT_API, { name: name });
+  }
+
+  // 改資料夾名（裡面 subjects＋uid 全跟著走）。inbox 保護→400；目標存在→409。
+  function renameProject(name, newName) {
+    return postJson(PROJECT_API + '/rename', { name: name, newName: newName });
+  }
+
+  // 整個 project 搬 .bak（含所有 subjects）。inbox 保護→400。破壞性，呼叫端需先確認。
+  function deleteProject(name) {
+    return postJson(PROJECT_API + '/delete', { name: name });
+  }
+
   /* ---------- Prompt 樣板庫（全域單檔，整清單覆寫語意） ---------- */
 
   function getPrompts() {
@@ -420,6 +441,9 @@
     saveSubject: saveSubject,
     renameSubject: renameSubject,
     deleteSubject: deleteSubject,
+    createProject: createProject,
+    renameProject: renameProject,
+    deleteProject: deleteProject,
     getPrompts: getPrompts,
     savePrompts: savePrompts,
     promptTitle: promptTitle,

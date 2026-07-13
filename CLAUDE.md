@@ -1,9 +1,10 @@
 # ollama-chat — Session context
 
-> 版本 v1.5｜最後更新 2026-07-13
+> 版本 v1.6｜最後更新 2026-07-13
 
-本地 **Ollama** 模型的全版面 Web 聊天介面：**project（資料夾，帶穩定 `uid`）→ subject（一組對話＝
-一個 JSON 檔，帶穩定 `uid`）→ turn（request-response 配對，`uid`/`serial`）**。串流回覆（NDJSON 直通）、
+本地 **Ollama** 模型的全版面 Web 聊天介面：**project（資料夾，一級公民＝可建立/改名/刪除、帶穩定
+`uid`；`inbox`＝未歸類收容處）→ subject（一組對話＝一個 JSON 檔，帶穩定 `uid`）→ turn（request-response
+配對，`uid`/`serial`）**。串流回覆（NDJSON 直通）、
 markdown 渲染（marked + DOMPurify）、自動命名（首句 → subject、落 `inbox`；「新對話」Subject
 留空時改由 Ollama 依首個 prompt 背景命名）、prompt 可隱藏（索引＋對話區＋context＋匯出同步排除）、
 匯出 Markdown、深連結 `?uid=<subject uid>`（rename-stable；舊格式 `?project=&subject=` 仍可開，
@@ -53,13 +54,18 @@ npm install && node app.js          # → http://localhost:3000/apps/ollama-chat
   ——是全專案唯一的「讀觸發寫」例外（v1→v2 turn 遷移不落地，這裡必須落地，因為 uid 一旦被記進
   網址列就必須穩定）。舊格式 `?project=&subject=` 深連結仍可開，開啟後 `replaceState` 就地升級成
   `?uid=`。改名成功後**不需要**也**不會**改網址。詳見 DESIGN.md §1.2。
-- **project 也有 `uid`**（marker 檔 `chats/<project>/.project.json`，`{ uid, createdAt }`）：裸資料夾
-  沒有檔案可掛 id，比照 subject「把 identity 存進自己的檔案」延伸出這個 marker。`GET /tree`
-  逐一 project 讀取時補建（`ensureProjectUid()`，同一套「讀觸發寫」邏輯）；`rename`/`delete` 清空
-  project 最後一個 subject 時，`rmEmptyProjectDir()` 連 marker 一併刪除再 `rmdir`，維持「project
-  隨最後一個 subject 消失、uid 跟著失效」的行為不變。**目前只做資料模型，沒有對應深連結**
-  （不像 subject uid 一開始就是為了 `?uid=`）——純粹讓 project 與 subject 在結構上對稱，之後
-  真有用途（例如 project 層深連結）再擴充。詳見 DESIGN.md §1.3。
+- **project 是一級公民（建立／改名／刪除；允許空 project）**：`.project.json` marker
+  （`chats/<project>/.project.json`，`{ uid, createdAt }`）＝「project 存在」的權威記錄。三個端點
+  `POST /project`（建空 project：`mkdir`+marker，409＝已存在）、`POST /project/rename`（一次
+  `fs.rename` 資料夾，subjects＋uid 全跟著走、subject 的 `?uid=` 深連結不受影響，409＝目標存在）、
+  `POST /project/delete`（整夾搬 `.bak`，破壞性→前端 `confirm` 帶對話數）。**搬走/刪掉最後一個
+  subject 後 project 留著（空的）**——`rmEmptyProjectDir` 已移除，project 只由明確 delete 消失。
+  uid 目前只做資料模型、無深連結（不像 subject uid 為 `?uid=` 而做）。詳見 DESIGN.md §1.3／§1.4。
+- **inbox＝「未歸到 project 的 subject」收容處**（＝空 project 值）：`DEFAULT_PROJECT`。是結構性
+  bucket 不是使用者資料夾，故兩件特別待遇——**保護**（`PROTECTED_PROJECTS` 擋 rename/delete，
+  後端 400、前端該列不渲染 more_vert）＋**排序固定墊底**（`GET /tree` 與 modal `<select>` 都把
+  inbox 排最後）。建 project 只走左欄「＋ 新 project」（`create_new_folder`）；modal Project
+  `<select>` 純挑既有（含 inbox），原本的「＋ 新 project…」哨兵已移除。
 - **可嵌入 lib** `ollama-chat-lib.js`（`window.OllamaChatLib`，純邏輯、不碰 DOM）：
   `chatStream()`（fetch ReadableStream 逐行解析 NDJSON、AbortController 中止）、
   `newTurn`/`newResponse`（建構子，`genUid` 用 `crypto.randomUUID`）、
@@ -77,16 +83,14 @@ npm install && node app.js          # → http://localhost:3000/apps/ollama-chat
   app CSS 只調間距／寬度。**Materialize 1.0 的 label 自動浮起在動態情境不可靠**——控制器自掛
   focus／input／blur 三個 listener 同步 `.active`（語意與其原生一致）。訊息氣泡則是本 app 自訂設計
   （user `--user-bubble` 圓角泡、assistant 無框全寬），非 Materialize 元件。
-- **改名／新對話 modal 的 Project 欄位＝Materialize `<select>`（`M.FormSelect`）＋「＋ 新 project…」
-  哨兵**（家族 §5.7 表單 canon、§5.11 版面坑）：**別用原生 `<datalist>`**——它在 Materialize modal
-  裡常常不彈出/被裁掉；但 Materialize Select 的下拉在同一個 modal 裡顯示正常（實測）。純 `<select>`
-  只能挑既有、不能自由輸入，所以 `renderProjectSelect()` 在 options 末項固定放一個哨兵 `<option>`
-  （值 `NEW_PROJECT_SENTINEL='/+new-project+/'`，含 `/`，`sanitizeName` 必拒＝保證不撞真實 project 名），
-  選它才展開下面的 `#new-project-custom` 輸入框打新名字（`onProjectSelectChange`）。`selectedProject()`
-  統一取值：選哨兵→取自訂輸入框、否則→取 select。每次開 modal 都 `M.FormSelect.getInstance().destroy()`
-  再 `init`（樹可能已變）。new 模式預設選 `state.project||inbox`（不在樹裡就 unshift 進去）。
-  **演進史**：`<input list>`+datalist（modal 內不彈）→ 手刻 body 級浮動下拉（能動但不夠原生）→
-  Materialize Select（現行，回歸家族 canon）。
+- **改名／新對話 modal 的 Project 欄位＝Materialize `<select>`（`M.FormSelect`），純挑既有**
+  （家族 §5.7 表單 canon、§5.11 版面坑）：**別用原生 `<datalist>`**——它在 Materialize modal 裡
+  常常不彈出/被裁掉；但 Materialize Select 的下拉在同一個 modal 裡顯示正常（實測）。`renderProjectSelect()`
+  依 `state.tree` 塞 options（inbox 墊底），每次開 modal 都 `M.FormSelect.getInstance().destroy()` 再
+  `init`（樹可能已變）；new 模式預設選 `state.project||inbox`（不在樹裡就 unshift）。**建立新 project
+  不在這裡**（原本的「＋ 新 project…」哨兵已移除）——走左欄「＋ 新 project」顯式動作（project 一級
+  公民，見上）。**演進史**：`<input list>`+datalist（modal 內不彈）→ 手刻 body 級浮動下拉（不夠原生）
+  → Materialize Select＋哨兵可順手建 → Materialize Select 純挑既有＋建立移到 project 管理（現行）。
 - **markdown → HTML 在控制器不在 lib**（DOM 工作）：marked（鎖 `12.0.2`）+ DOMPurify（鎖 `3.1.6`），
   連結一律 `target=_blank rel=noopener`；串流中 120ms 節流全文重繪；完成後補 §4.5 式複製鈕
   （light DOM，可用 Material Icons，不必 inline SVG）。

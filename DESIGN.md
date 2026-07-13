@@ -1,6 +1,6 @@
 # ollama-chat — 設計決議（為什麼長這樣）
 
-> 版本 v1.6｜最後更新 2026-07-13
+> 版本 v1.7｜最後更新 2026-07-13
 
 「怎麼用」見 [README](./README.zh-Hant.md)；家族共同規範見
 [nodeapp-webapp-family](https://github.com/scottgfhong310/nodeapp-webapp-family)（此處只記本 app 特有的取捨）。
@@ -86,15 +86,34 @@ v1 是扁平陣列、`role` user/assistant 交替；v2 引入後**只在 `GET /s
   就當場生成並寫入——跟 subject uid 的「讀觸發寫」是同一套邏輯（見 §1.2），差別是這裡連讀取
   路徑本身都只有一種（沒有 `?uid=` 查詢分支，因為目前沒有 project 層的深連結需求），純粹是
   資料模型補完，不做新的定址功能。
-- **清空 project 時 marker 要一併處理**：`rename`／`delete` 把某 project 的最後一個 subject
-  搬走／刪除後，原本就會嘗試 `fs.rmdir` 清空的資料夾；多了 marker 檔後空資料夾不再是真的空
-  （還有一個 `.project.json`），`rmdir` 會因 `ENOTEMPTY` 失敗、留下只剩 marker 的空殼 project。
-  `rmEmptyProjectDir()` 因此先判斷「只剩 marker」的情況、連 marker 一併刪除再 `rmdir`，維持
-  「project 隨最後一個 subject 離開而消失、uid 跟著失效」這個改動前就有的行為不變。
-- **v1.6 只做資料模型，不做深連結**：`GET /tree` 回應每個 project 帶 `uid`，但目前沒有對應的
+- **只做資料模型，不做深連結**：`GET /tree` 回應每個 project 帶 `uid`，但目前沒有對應的
   `?project_uid=` 之類的深連結端點或前端使用——與 subject uid（§1.2，一開始就是為了深連結而做）
   出發點不同，純粹是先把 id 準備好；真的要用在畫面上（例如以 project uid 取代明文名稱查詢）
   再視需求擴充，不預先假設用途。
+
+### 1.4 project 升為一級公民（建立／改名／刪除）＋ inbox 語意
+
+§1.3 剛加 uid 時，project 仍是「衍生」的——建立/移入 subject 時自動出現、搬走最後一個 subject
+時自動消失（舊 `rmEmptyProjectDir`）。後來 owner 要 project 有完整生命週期，於是**把 project
+升為一級公民**：`.project.json` marker 成為「project 存在」的權威記錄，空 project 允許存在。
+
+- **拿掉自動清除**：`rmEmptyProjectDir` 連同 `POST /rename`／`POST /delete`（subject 端）裡的呼叫
+  一併移除。搬走／刪掉最後一個 subject 後 project **留著**（空的），只由明確的 `POST /project/delete`
+  消失。這反而比原本的「自動出現又自動消失」更一致——project 像檔案管理員的資料夾，使用者可以
+  先建資料夾、再放對話。仍是「檔案系統＝單一真相」（marker 在檔案系統裡，沒有另開 registry）。
+- **三個端點**（都回 `{ ok }`）：`POST /project`（`mkdir` + 寫 marker，已存在 409）、
+  `POST /project/rename`（一次 `fs.rename` 資料夾——裡面所有 subjects＋marker/uid 全跟著走，
+  subject 內容沒動 → subject 的 `?uid=` 深連結**不受影響**；目標存在 409）、`POST /project/delete`
+  （整個資料夾搬 `chats/.bak/<name>-<ts>/`，一次多組對話、可救回；破壞性→前端 `confirm` 帶對話數）。
+- **inbox＝「未歸到 project 的 subject」收容處**（＝「project 空值」的具體化）：直接輸入不指定
+  project 的對話落這裡。因為它是**結構性 bucket、不是使用者資料夾**，做兩件特別待遇：
+  1. **保護**：`PROTECTED_PROJECTS` 擋掉對 inbox 的 rename/delete（後端回 400、前端該列不渲染
+     more_vert 動作）——改名/刪掉「未歸類收容處」語意上很怪（未歸類的對話沒地方去）。
+  2. **排序固定墊底**：`GET /tree` 的排序 user projects 照名稱、inbox 永遠最後；modal 的 Project
+     `<select>` 同一份 `state.tree` 順序，inbox 也在最下面。像「正式資料夾在上、未歸類在下」。
+- **建立 project 只走顯式動作**：左欄標題列的「＋ 新 project」（`create_new_folder`）。原本 modal
+  的 Project `<select>` 曾有「＋ 新 project…」哨兵可順手建，**已移除**——建 project 是 project
+  管理的事，不塞在建對話的流程裡；select 回歸純挑既有（含 inbox）。先建資料夾、再歸類。
 
 ## 2. Ollama 走後端 proxy，不由前端直打 11434
 

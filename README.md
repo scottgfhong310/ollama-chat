@@ -1,6 +1,6 @@
 # ollama-chat
 
-> 版本 v1.3｜最後更新 2026-07-13
+> 版本 v1.4｜最後更新 2026-07-13
 
 [English] | [繁體中文](README.zh-Hant.md) | [日本語](README.ja.md)
 
@@ -16,6 +16,7 @@ Not compatible with GitHub Pages (requires the Node backend).
 
 - **Streaming chat** with any locally installed Ollama model (model picker with sizes; stop button aborts generation all the way up to Ollama).
 - **Project / subject library**: every conversation is one JSON file under `chats/<project>/<subject>.json` — plain files, no database, no registry to drift. Both project and subject have a stable `uid`, stored in a marker/JSON file alongside them. A collapse-all button sits next to the library header (expanding is still a per-project action).
+- **Project management**: projects are first-class — create one from the "New project" button in the sidebar (make an empty folder first, add chats later), rename or delete any project from its row's `⋮` menu (delete confirms and backs the whole folder up to `.bak`). `inbox` is the bucket for conversations not filed under a project; it's pinned last and protected (can't be renamed or deleted).
 - **Prompt index**: every user prompt in a subject is listed in a slide-in panel; clicking one scrolls to that exchange.
 - **Prompt templates**: a global, cross-conversation template library (single `prompts.json`); save the current input as a template, click a template to insert it at the input cursor, delete with backup.
 - **Auto-naming**: typing without opening a subject creates one named from your first prompt, stored under `inbox`. In the "New chat" dialog, the Subject field can also be left blank — once you send the first message, Ollama generates a short title in the background and the conversation is renamed to it.
@@ -61,6 +62,9 @@ public/upload/ollama-chat/chats/    # conversations (not committed)
 | POST | `/api/ollama-chat/subject` | `{ project, name, chat }` — write (overwrite) one subject |
 | POST | `/api/ollama-chat/rename` | `{ project, name, newProject, newName }` — rename / move to another project (409 if target exists) |
 | POST | `/api/ollama-chat/delete` | `{ project, name }` — move the file to `chats/.bak/` |
+| POST | `/api/ollama-chat/project` | `{ name }` — create an empty project (409 if it exists) |
+| POST | `/api/ollama-chat/project/rename` | `{ name, newName }` — rename the folder (inbox protected; 409 if target exists) |
+| POST | `/api/ollama-chat/project/delete` | `{ name }` — move the whole project to `chats/.bak/` (inbox protected) |
 | GET | `/api/ollama-chat/prompts` | Read the template library → `{ ok, prompts }` |
 | POST | `/api/ollama-chat/prompts` | `{ prompts: [...] }` — overwrite the whole list (backs up the old file first) |
 

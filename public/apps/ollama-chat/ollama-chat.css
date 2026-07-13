@@ -99,8 +99,8 @@ body.tree-closed #tree-pane {
   word-break: break-all;
 }
 
-.tree-collapse-all {
-  margin-left: auto;
+/* tree-header 右側動作鈕（新 project／全部收合）：第一顆用 margin-left:auto 把整組推到最右 */
+.tree-header-btn {
   flex-shrink: 0;
   font-size: 20px;
   padding: 3px;
@@ -109,7 +109,11 @@ body.tree-closed #tree-pane {
   color: var(--muted);
 }
 
-.tree-collapse-all:hover {
+#tree-new-project {
+  margin-left: auto;
+}
+
+.tree-header-btn:hover {
   background: rgba(127, 127, 127, 0.10);
   color: var(--text);
 }
@@ -169,6 +173,55 @@ body.tree-closed #tree-pane {
 
 .proj.collapsed .subjects {
   display: none;
+}
+
+/* project 列尾動作（改名／刪除）：與 subject 列同款——more_vert hover/展開才現身，
+   展開時讓位藏掉 count＋caret（inbox 列不渲染這些，見 renderTree） */
+.proj-head .proj-more {
+  font-size: 18px;
+  flex: 0 0 auto;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity .12s ease;
+}
+
+.proj-head:hover .proj-more,
+.proj-head.expanded .proj-more {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .proj-head .proj-more { opacity: 1; }
+}
+
+.proj-head .proj-actions {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.proj-head.expanded .proj-actions {
+  display: flex;
+}
+
+.proj-head.expanded .count,
+.proj-head.expanded .caret {
+  display: none;
+}
+
+.proj-actions .proj-act {
+  font-size: 17px;
+  cursor: pointer;
+  padding: 2px;
+}
+
+.proj-actions .proj-act:hover {
+  color: var(--accent);
+}
+
+.proj-actions .proj-act-del:hover {
+  color: #ff6e6e;    /* 刪除＝警示語彙 */
 }
 
 .subjects {

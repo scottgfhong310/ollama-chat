@@ -1,6 +1,6 @@
 # ollama-chat
 
-> 版本 v1.3｜最後更新 2026-07-13
+> 版本 v1.4｜最後更新 2026-07-13
 
 [English](README.md) | [繁體中文](README.zh-Hant.md) | [日本語]
 
@@ -16,6 +16,7 @@ GitHub Pages には非対応（Node バックエンドが必要）。
 
 - **ストリーミングチャット**：インストール済みの任意の Ollama モデル（サイズ付きモデル選択；停止ボタンは Ollama 側まで生成を中止）。
 - **project / subject ライブラリ**：1 会話＝1 JSON ファイル（`chats/<project>/<subject>.json`）——プレーンファイルのみ、DB もレジストリも不要。project／subject はそれぞれ安定した `uid` を持ち、同じディレクトリ内の marker/JSON ファイルに保存される。ライブラリ見出しの横に全 project 一括折りたたみボタンがある（展開は個別 project ごとの操作）。
+- **project 管理**：project はファーストクラス——サイドバーの「新しい project」で作成（空フォルダを先に作って後から会話を入れられる）、各 project 行の `⋮` から名前変更・削除（削除は確認してフォルダ全体を `.bak` にバックアップ）。`inbox` は「project に未分類の会話」の受け皿で、最下部に固定され保護される（名前変更・削除不可）。
 - **プロンプト索引**：subject 内のすべてのユーザー発言をスライドインパネルに一覧表示；クリックでそのやり取りへスクロール。
 - **プロンプトのテンプレート**：会話をまたぐグローバルなテンプレート集（単一の `prompts.json`）——現在の入力を保存、クリックで入力欄のカーソル位置に挿入、削除はバックアップ付き。
 - **自動命名**：subject を開かずに入力すると、最初の一文から命名され `inbox` に保存。「新しい会話」ダイアログの Subject 欄も空欄のままでよく、最初のメッセージ送信後に Ollama がバックグラウンドで短いタイトルを生成し、自動的に改名される。
@@ -61,6 +62,9 @@ public/upload/ollama-chat/chats/    # 会話データ（コミットしない）
 | POST | `/api/ollama-chat/subject` | `{ project, name, chat }`——ファイル全体を上書き保存 |
 | POST | `/api/ollama-chat/rename` | `{ project, name, newProject, newName }`——名前変更／別 project へ移動（移動先が存在する場合は 409） |
 | POST | `/api/ollama-chat/delete` | `{ project, name }`——ファイルを `chats/.bak/` へ移動 |
+| POST | `/api/ollama-chat/project` | `{ name }`——空の project を作成（既存の場合は 409） |
+| POST | `/api/ollama-chat/project/rename` | `{ name, newName }`——フォルダ名の変更（inbox 保護；移動先が存在する場合は 409） |
+| POST | `/api/ollama-chat/project/delete` | `{ name }`——project 全体を `chats/.bak/` へ移動（inbox 保護） |
 | GET | `/api/ollama-chat/prompts` | テンプレート集を読む → `{ ok, prompts }` |
 | POST | `/api/ollama-chat/prompts` | `{ prompts: [...] }`——リスト全体を上書き（上書き前に旧ファイルをバックアップ） |
 
