@@ -308,6 +308,12 @@ textarea.materialize-textarea:focus:not([readonly]) {
   color: var(--mz-focus) !important;
 }
 
+/* Materialize 原始規則是 .input-field .helper-text（rgba(0,0,0,.54)，為淺色背景設計，
+   深色模式下幾乎看不見）——覆寫要對齊同樣的兩層選擇器才贏得了 specificity。 */
+.input-field .helper-text {
+  color: var(--mz-text-muted);
+}
+
 input::placeholder,
 textarea::placeholder {
   color: var(--mz-text-disabled);
