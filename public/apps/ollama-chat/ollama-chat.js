@@ -216,29 +216,15 @@
     });
   }
 
-  // 全部收合鈕的 icon／title 反映聚合狀態：目前全收合就顯示「展開」意圖，否則顯示「收合」——
-  // 圖示畫的是點下去會發生的事，不是目前狀態本身。
-  function updateCollapseAllIcon() {
-    var btn = document.getElementById('tree-collapse-all');
-    if (!btn) return;
-    var allCollapsed = state.tree.length > 0 &&
-      state.tree.every(function (p) { return !!state.collapsed[p.name]; });
-    btn.textContent = allCollapsed ? 'unfold_more' : 'unfold_less';
-    var key = allCollapsed ? 'tool.expandAll' : 'tool.collapseAll';
-    btn.setAttribute('data-i18n-title', key);
-    btn.title = I18n.t(key);
-  }
-
-  function toggleCollapseAll() {
+  // 全部收合是單向動作，不是 toggle——展開永遠是個別 project 自己的事（點 proj-head）。
+  // 按鈕圖示／文字固定，不必反映聚合狀態。
+  function collapseAll() {
     if (!state.tree.length) return;
-    var allCollapsed = state.tree.every(function (p) { return !!state.collapsed[p.name]; });
-    var next = !allCollapsed;   // 目前全收合 → 這次展開全部；否則收合全部
-    state.tree.forEach(function (p) { state.collapsed[p.name] = next; });
+    state.tree.forEach(function (p) { state.collapsed[p.name] = true; });
     renderTree();
   }
 
   function renderTree() {
-    updateCollapseAllIcon();
     if (!state.tree.length) {
       treeEl.innerHTML = '<div class="tree-empty">' + I18n.t('tree.empty') + '</div>';
       return;
@@ -852,9 +838,8 @@
       var name = proj.attr('data-project');
       state.collapsed[name] = !state.collapsed[name];
       proj.toggleClass('collapsed', !!state.collapsed[name]);
-      updateCollapseAllIcon();
     });
-    $('#tree-collapse-all').on('click', toggleCollapseAll);
+    $('#tree-collapse-all').on('click', collapseAll);
     $(document).on('click', '#tree .subjects li', function () {
       openSubject($(this).attr('data-project'), $(this).attr('data-name'));
       if (window.innerWidth <= 800) document.body.classList.add('tree-closed');

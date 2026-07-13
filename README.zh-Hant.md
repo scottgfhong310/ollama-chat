@@ -15,7 +15,7 @@ light/dark 主題。輕量 Express 後端（Ollama proxy＋對話存取）。
 ## 功能
 
 - **串流對話**：任何已安裝的 Ollama 模型（模型選單附大小；停止鍵會一路中止到 Ollama 端）。
-- **project / subject 對話庫**：一組對話＝一個 JSON 檔，放在 `chats/<project>/<subject>.json`——純檔案、無資料庫、無 registry 可失同步；project／subject 都有各自的穩定 `uid`，收在同目錄的 marker/JSON 檔裡。左欄標題列有一鍵收合／展開全部 project 的按鈕。
+- **project / subject 對話庫**：一組對話＝一個 JSON 檔，放在 `chats/<project>/<subject>.json`——純檔案、無資料庫、無 registry 可失同步；project／subject 都有各自的穩定 `uid`，收在同目錄的 marker/JSON 檔裡。左欄標題列有一鍵收合全部 project 的按鈕（展開仍是個別 project 自己的動作）。
 - **Prompt 索引**：subject 內所有 user 發言列成滑出面板，點一條就捲到那一問一答。
 - **Prompt 樣板庫**：全域跨對話的樣板清單（單檔 `prompts.json`）——把目前輸入存成樣板、點樣板插入輸入框游標處、刪除有備份。
 - **自動命名**：沒開 subject 直接輸入，會以第一句自動命名、存進 `inbox`。「新對話」對話框的 Subject 欄也可留空——送出第一則訊息後，由 Ollama 在背景生成一句短標題並自動改名。

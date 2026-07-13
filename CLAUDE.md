@@ -109,11 +109,9 @@ npm install && node app.js          # → http://localhost:3000/apps/ollama-chat
   串流中僅擋「目標＝開啟中對話」。
 - **popstate 防護**：modal 的 `<a href="#!">` hash 變化也會觸發 popstate——handler 先比對
   `?uid=`（或舊格式 `?project=&subject=`）與目前 state，相同就忽略（避免無謂重載）。
-- **`#tree-collapse-all`（對話庫標題列右側 icon）**：一鍵收合／展開全部 project。是**聚合狀態
-  的切換鈕**，不是固定的收合鈕——icon／title 反映「點下去會發生的事」：只要還有任一 project
-  展開就顯示「全部收合」，全部都收合了才變成「全部展開」；個別 project 自己的 `proj-head`
-  收合也會同步更新這顆聚合 icon（`updateCollapseAllIcon()`）。收合狀態只在記憶體
-  （`state.collapsed`），不落地。
+- **`#tree-collapse-all`（對話庫標題列右側 icon）**：一鍵收合全部 project。是**單向動作**
+  （`collapseAll()`），不是 toggle——展開永遠是個別 project 自己的事（點 `proj-head`），icon／
+  文字固定不反映聚合狀態。收合狀態只在記憶體（`state.collapsed`），不落地。
 - **複製件登記**（共用件改版時靠這份清單同步）：`materialize-dark.css` ←家族 repo、
   `side-tool.css` ←html-viewer（〔正統〕flex 版）、`thinking-dot.css` ←markdown-library（canonical）、
   `i18n.js` ←html-viewer（家族 30 份複製點之一）、`LICENSE` ←家族。

@@ -42,7 +42,6 @@ I18n.register('ja', {
   'tool.clearInput': '入力をクリア',
   'tool.subjActions': 'その他の操作（名前変更／削除）',
   'tool.collapseAll': 'すべて折りたたむ',
-  'tool.expandAll': 'すべて展開',
   'toast.lang': '{name} に切り替えました',
   'toast.copied': 'コードをコピーしました',
   'toast.copyFail': 'コピーに失敗しました（localhost または HTTPS が必要）',

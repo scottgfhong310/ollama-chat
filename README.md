@@ -15,7 +15,7 @@ Not compatible with GitHub Pages (requires the Node backend).
 ## Features
 
 - **Streaming chat** with any locally installed Ollama model (model picker with sizes; stop button aborts generation all the way up to Ollama).
-- **Project / subject library**: every conversation is one JSON file under `chats/<project>/<subject>.json` — plain files, no database, no registry to drift. Both project and subject have a stable `uid`, stored in a marker/JSON file alongside them. A collapse/expand-all toggle sits next to the library header.
+- **Project / subject library**: every conversation is one JSON file under `chats/<project>/<subject>.json` — plain files, no database, no registry to drift. Both project and subject have a stable `uid`, stored in a marker/JSON file alongside them. A collapse-all button sits next to the library header (expanding is still a per-project action).
 - **Prompt index**: every user prompt in a subject is listed in a slide-in panel; clicking one scrolls to that exchange.
 - **Prompt templates**: a global, cross-conversation template library (single `prompts.json`); save the current input as a template, click a template to insert it at the input cursor, delete with backup.
 - **Auto-naming**: typing without opening a subject creates one named from your first prompt, stored under `inbox`. In the "New chat" dialog, the Subject field can also be left blank — once you send the first message, Ollama generates a short title in the background and the conversation is renamed to it.

@@ -42,7 +42,6 @@ I18n.register('en', {
   'tool.clearInput': 'Clear input',
   'tool.subjActions': 'More actions (rename / delete)',
   'tool.collapseAll': 'Collapse all',
-  'tool.expandAll': 'Expand all',
   'toast.lang': 'Switched to {name}',
   'toast.copied': 'Code copied',
   'toast.copyFail': 'Copy failed (requires localhost or HTTPS)',
