@@ -25,6 +25,7 @@ I18n.register('zh-Hant', {
   'modal.title': '新對話',
   'modal.project': 'Project（資料夾）',
   'modal.subject': 'Subject（主題）',
+  'modal.subjectHintNew': '留空的話，送出第一則訊息後會由 Ollama 自動命名',
   'modal.create': '建立',
   'modal.cancel': '取消',
   'modal.renameTitle': '改名／搬移',

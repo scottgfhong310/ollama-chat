@@ -41,6 +41,7 @@
     project: null,   // 目前開啟的 project（資料夾名）
     subject: null,   // 目前開啟的 subject（檔名去 .json）
     chat: null,      // { model, createdAt, updatedAt, messages: [turn] }（turn 結構見 lib 檔頭）
+    needsAutoTitle: false,   // 目前 subject 是「新對話留空」的暫時檔名，等首個 prompt 送出後由 Ollama 命名
     streaming: false,
     abortCtl: null,
     collapsed: {}    // project name → true（樹狀收合狀態，僅記憶體）
@@ -289,6 +290,7 @@
             '?project=' + encodeURIComponent(project) + '&subject=' + encodeURIComponent(name));
         } catch (e) {}
       }
+      state.needsAutoTitle = false;   // 開啟既有 subject 一律視為已命名（邊界情況見 DESIGN.md）
       renderMessages();
       updateChrome();
       markTreeActive();
@@ -299,6 +301,7 @@
   }
 
   function closeSubject() {
+    state.needsAutoTitle = false;
     state.project = null;
     state.subject = null;
     state.chat = null;
@@ -372,7 +375,37 @@
     updateChrome();
     scrollBottom();
     persist();
+    if (state.needsAutoTitle) {
+      state.needsAutoTitle = false;   // 只在第一個 prompt 觸發一次
+      maybeAutoTitle(state.project, state.subject, text);
+    }
     startStream(turn);
+  }
+
+  // 背景任務：依首個 prompt 向 Ollama 要一句標題，成功則把暫時檔名（chat-<ts>）改成該標題。
+  // 與主串流並行（不等它），失敗只記 console、保留暫時檔名——已是可用的合法 subject，不影響對話。
+  function maybeAutoTitle(project, placeholder, promptText) {
+    L.generateTitle({ model: state.model, prompt: promptText }).then(function (raw) {
+      var title = L.autoName(raw);   // 借用既有消毒/截斷規則，確保合法檔名
+      if (!title) return;
+      // 期間使用者可能已切走／手動改名——只有「目前仍是那個暫時檔名」才套用
+      if (state.project !== project || state.subject !== placeholder) return;
+      title = L.uniqueName(title, takenNames(project).filter(function (n) { return n !== placeholder; }));
+      return L.renameSubject(project, placeholder, project, title).then(function (d) {
+        if (state.project === project && state.subject === placeholder) {
+          state.project = d.project;
+          state.subject = d.name;
+          try {
+            history.replaceState({ project: d.project, subject: d.name }, '',
+              '?project=' + encodeURIComponent(d.project) + '&subject=' + encodeURIComponent(d.name));
+          } catch (e) {}
+          updateChrome();
+        }
+        return refreshTree();   // 重繪樹（renderTree 依 state.project/subject 自行標記 active）
+      });
+    }).catch(function (err) {
+      console.warn('[ollama-chat] auto-title 失敗，保留暫時名稱：', err.message);
+    });
   }
 
   function startStream(turn) {
@@ -615,12 +648,15 @@
     modalMode = mode;
     var title = document.getElementById('new-modal-title');
     var confirmBtn = document.getElementById('new-create');
+    var hint = document.getElementById('new-subject-hint');
     var tKey = mode === 'rename' ? 'modal.renameTitle' : 'modal.title';
     var cKey = mode === 'rename' ? 'modal.rename' : 'modal.create';
     title.setAttribute('data-i18n', tKey);
     title.textContent = I18n.t(tKey);
     confirmBtn.setAttribute('data-i18n', cKey);
     confirmBtn.textContent = I18n.t(cKey);
+    // 「留空自動命名」提示只在新建時成立；改名不允許留空
+    hint.style.visibility = mode === 'rename' ? 'hidden' : 'visible';
   }
 
   function openNewModal() {
@@ -651,15 +687,30 @@
   function confirmModal() {
     var project = document.getElementById('new-project').value.trim();
     var subject = document.getElementById('new-subject').value.trim();
-    if (!L.isSafeName(project) || !L.isSafeName(subject)) {
+    if (!L.isSafeName(project)) {
       M.toast({ html: I18n.t('toast.nameBad'), classes: 'orange' });
       return;
     }
-    if (modalMode === 'rename') return renameFromModal(project, subject);
+    if (modalMode === 'rename') {
+      if (!L.isSafeName(subject)) {   // 改名不允許留空
+        M.toast({ html: I18n.t('toast.nameBad'), classes: 'orange' });
+        return;
+      }
+      return renameFromModal(project, subject);
+    }
 
+    // 新對話：Subject 可留空——先用暫時檔名頂著，等第一個 prompt 送出後
+    // 由 Ollama 依內容生標題、自動改名（見 maybeAutoTitle）
+    var pendingTitle = !subject;
+    if (subject && !L.isSafeName(subject)) {
+      M.toast({ html: I18n.t('toast.nameBad'), classes: 'orange' });
+      return;
+    }
+    if (pendingTitle) subject = 'chat-' + L.timestamp();
     subject = L.uniqueName(subject, takenNames(project));
     state.project = project;
     state.subject = subject;
+    state.needsAutoTitle = pendingTitle;
     state.chat = L.newChat(state.model);
     try {
       history.pushState({ project: project, subject: subject }, '',

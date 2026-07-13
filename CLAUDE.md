@@ -1,11 +1,11 @@
 # ollama-chat — Session context
 
-> 版本 v1.1｜最後更新 2026-07-12
+> 版本 v1.2｜最後更新 2026-07-13
 
 本地 **Ollama** 模型的全版面 Web 聊天介面：**project（資料夾）→ subject（一組對話＝一個 JSON 檔）
 → turn（request-response 配對，`uid`/`serial`）**。串流回覆（NDJSON 直通）、markdown 渲染（marked + DOMPurify）、
-自動命名（首句 → subject、落 `inbox`）、prompt 可隱藏（索引＋對話區＋context＋匯出同步排除）、
-匯出 Markdown、深連結 `?project=&subject=`。
+自動命名（首句 → subject、落 `inbox`；「新對話」Subject 留空時改由 Ollama 依首個 prompt 背景命名）、
+prompt 可隱藏（索引＋對話區＋context＋匯出同步排除）、匯出 Markdown、深連結 `?project=&subject=`。
 輕量 Express 後端（Ollama proxy＋對話存取），無資料庫、無 registry——純檔案掃描。
 
 本 app 屬於 **nodeapp WebApp 家族**；共同規範與流程在
@@ -17,7 +17,8 @@
 
 ```
 app.js                              # Express 入口：port 3000；/ → 302 /apps/ollama-chat/；dotenv
-routes/ollama-chat.js               # GET /models、POST /chat（串流直通）、GET /tree、GET|POST /subject、POST /rename、POST /delete、GET|POST /prompts
+routes/ollama-chat.js               # GET /models、POST /chat（串流直通）、POST /title（背景命名）、
+│                                    #   GET /tree、GET|POST /subject、POST /rename、POST /delete、GET|POST /prompts
 public/apps/ollama-chat/            # 前端（服務於 /apps/ollama-chat/）
 ├─ index.html · ollama-chat.css · ollama-chat.js · ollama-chat-lib.js
 ├─ materialize-dark.css             # 家族共用（Materialize 深色；materialize.css 之後載入）
@@ -51,7 +52,13 @@ npm install && node app.js          # → http://localhost:3000/apps/ollama-chat
   `flattenForApi()`（turns → 扁平 `[{role,content}]`，供 Ollama context；**排除 hidden 的 turn**）、
   `promptIndex()`（user turn → 索引，含 `uid`/`serial`/`hidden`）、
   `autoName`/`isSafeName`/`uniqueName`（鏡射後端消毒）、`exportMarkdown`（用 `serial` 編號、
-  跳過 hidden）、tree/subject CRUD、`timestamp`/`stampFilename`/`formatTs`/`formatSize`/`downloadText`。
+  跳過 hidden）、`generateTitle()`（非串流呼叫 `/title`，見下一條）、tree/subject CRUD、
+  `timestamp`/`stampFilename`/`formatTs`/`formatSize`/`downloadText`。
+- **新對話 Subject 可留空 → Ollama 背景命名**：「新對話」modal 的 Subject 欄留空時，先用
+  `'chat-' + timestamp()` 暫時檔名建立（`state.needsAutoTitle=true`）；送出第一則訊息時
+  `maybeAutoTitle()` 與正式回覆**並行**呼叫 `POST /title`（20s 逾時、失敗只 `console.warn`
+  靜默保留暫時名稱），拿到標題後走**既有的 `renameSubject()`**（非另開一套命名邏輯）換掉檔名。
+  詳見 DESIGN.md §5.1（含「切走再回來視同已命名」的邊界情況說明）。
 - **輸入列走 Materialize `.input-field` ＋浮動 label**（§5.7）：深色由 materialize-dark.css 處理，
   app CSS 只調間距／寬度。**Materialize 1.0 的 label 自動浮起在動態情境不可靠**——控制器自掛
   focus／input／blur 三個 listener 同步 `.active`（語意與其原生一致）。訊息氣泡則是本 app 自訂設計

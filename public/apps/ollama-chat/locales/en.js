@@ -25,6 +25,7 @@ I18n.register('en', {
   'modal.title': 'New chat',
   'modal.project': 'Project (folder)',
   'modal.subject': 'Subject (topic)',
+  'modal.subjectHintNew': 'Leave blank to auto-name it from Ollama after your first message',
   'modal.create': 'Create',
   'modal.cancel': 'Cancel',
   'modal.renameTitle': 'Rename / move',

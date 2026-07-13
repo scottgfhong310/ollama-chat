@@ -1,6 +1,6 @@
 # ollama-chat
 
-> 版本 v1.0｜最後更新 2026-07-11
+> 版本 v1.1｜最後更新 2026-07-13
 
 [English](README.md) | [繁體中文](README.zh-Hant.md) | [日本語]
 
@@ -18,7 +18,7 @@ GitHub Pages には非対応（Node バックエンドが必要）。
 - **project / subject ライブラリ**：1 会話＝1 JSON ファイル（`chats/<project>/<subject>.json`）——プレーンファイルのみ、DB もレジストリも不要。
 - **プロンプト索引**：subject 内のすべてのユーザー発言をスライドインパネルに一覧表示；クリックでそのやり取りへスクロール。
 - **プロンプトのテンプレート**：会話をまたぐグローバルなテンプレート集（単一の `prompts.json`）——現在の入力を保存、クリックで入力欄のカーソル位置に挿入、削除はバックアップ付き。
-- **自動命名**：subject を開かずに入力すると、最初の一文から命名され `inbox` に保存。
+- **自動命名**：subject を開かずに入力すると、最初の一文から命名され `inbox` に保存。「新しい会話」ダイアログの Subject 欄も空欄のままでよく、最初のメッセージ送信後に Ollama がバックグラウンドで短いタイトルを生成し、自動的に改名される。
 - **Markdown 返信**：fenced code にコピーボタン付き；データ内容は翻訳・改変しない。
 - **名前変更／移動**：サイドレールから subject の改名や別 project への移動（名前＝パス；移動先が既存の場合は拒否、上書きしない）。
 - **エクスポート**：任意の subject を Markdown（`<subject>-yyyyMMddHHmmss.md`）に。
@@ -53,6 +53,7 @@ public/upload/ollama-chat/chats/    # 会話データ（コミットしない）
 |---|---|---|
 | GET | `/api/ollama-chat/models` | Ollama `/api/tags` のプロキシ → `{ ok, models }` |
 | POST | `/api/ollama-chat/chat` | Ollama `/api/chat` のプロキシ（NDJSON ストリームをそのまま通過；エラー時は `{ ok:false, error }`） |
+| POST | `/api/ollama-chat/title` | `{ model, prompt }`——非ストリーミング、短い会話タイトルを生成 → `{ ok, title }`（20秒でタイムアウト） |
 | GET | `/api/ollama-chat/tree` | `chats/` をスキャン → `{ ok, projects: [{ name, subjects }] }` |
 | GET | `/api/ollama-chat/subject?project=&name=` | subject を 1 件読む → `{ ok, chat }` |
 | POST | `/api/ollama-chat/subject` | `{ project, name, chat }`——ファイル全体を上書き保存 |

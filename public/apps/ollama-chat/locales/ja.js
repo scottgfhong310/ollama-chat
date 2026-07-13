@@ -25,6 +25,7 @@ I18n.register('ja', {
   'modal.title': '新しい会話',
   'modal.project': 'Project（フォルダ）',
   'modal.subject': 'Subject（テーマ）',
+  'modal.subjectHintNew': '空欄のままなら、最初のメッセージ送信後に Ollama が自動的に命名します',
   'modal.create': '作成',
   'modal.cancel': 'キャンセル',
   'modal.renameTitle': '名前変更／移動',

@@ -8,6 +8,9 @@
  *   POST /api/ollama-chat/chat     → 轉 Ollama /api/chat（stream:true），
  *                                    成功時「NDJSON 串流直通」（非 { ok } 信封，唯一例外，見 DESIGN.md）；
  *                                    失敗（含 upstream 4xx/5xx、連不上）回 JSON { ok:false, error }
+ *   POST /api/ollama-chat/title    → { model, prompt } 非串流呼叫 Ollama，依首個 prompt 生一句短標題
+ *                                    → { ok, title }；20s 逾時；標題只做輕度清理（去引號/markdown），
+ *                                    最終合法檔名交前端 autoName() 與後端 /rename 的 sanitizeName 把關
  *
  * 對話存取（project=資料夾、subject=JSON 檔；純檔案掃描，無 registry）：
  *   GET  /api/ollama-chat/tree      → 掃 chats/ 建 project→subject 樹（讀各檔 meta）
@@ -249,6 +252,68 @@ router.post('/chat', async (req, res) => {
     res.end();
   });
   body.pipe(res);
+});
+
+const TITLE_SYSTEM_PROMPT =
+  'You write short titles for chat conversations. Given the user\'s first message below, ' +
+  'reply with ONLY a concise title (3-6 words) in the same language as the message. ' +
+  'No quotes, no markdown, no trailing punctuation, no explanation — output the title text only.';
+
+// 輕度清理：只做「小型本地模型常見不聽話」的保底處理（多話一行、包引號、掛 Title: 前綴、
+// markdown 標記字元）；是否為合法檔名交由呼叫端 autoName() 與 /rename 的 sanitizeName 把關
+// （雙層防禦——前端先清一次、/rename 落地前再驗一次），這裡不重複那套規則。
+function cleanTitleRaw(s) {
+  s = String(s || '').trim().split('\n')[0];
+  s = s.replace(/^["'“”‘’`]+|["'“”‘’`]+$/g, '');
+  s = s.replace(/^(title|標題|タイトル)[:：]\s*/i, '');
+  s = s.replace(/[*_#>`]/g, '');
+  return s.trim();
+}
+
+// POST /api/ollama-chat/title — 非串流，依首個 prompt 生一句短標題（新對話 Subject 留空時用）
+router.post('/title', async (req, res) => {
+  const { model, prompt } = req.body || {};
+  if (typeof model !== 'string' || !model.trim()) {
+    return res.status(400).json({ ok: false, error: 'model required' });
+  }
+  if (typeof prompt !== 'string' || !prompt.trim()) {
+    return res.status(400).json({ ok: false, error: 'prompt required' });
+  }
+
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), 20000);   // 背景任務，逾時別讓使用者等太久
+  try {
+    const upstream = await fetch(ollamaBase() + '/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: 'system', content: TITLE_SYSTEM_PROMPT },
+          { role: 'user', content: prompt.slice(0, 4000) }   // 標題只需開頭意圖，封頂輸入長度
+        ],
+        stream: false
+      }),
+      signal: ac.signal
+    });
+    if (!upstream.ok) {
+      const text = await upstream.text().catch(() => '');
+      let msg = 'Ollama HTTP ' + upstream.status;
+      try { msg = JSON.parse(text).error || msg; } catch (e) { /* keep */ }
+      console.error('[ollama-chat] POST /title upstream error:', msg);
+      return res.status(502).json({ ok: false, error: msg });
+    }
+    const data = await upstream.json();
+    const title = cleanTitleRaw((data.message && data.message.content) || '');
+    if (!title) return res.status(502).json({ ok: false, error: 'empty title' });
+    return res.json({ ok: true, title });
+  } catch (err) {
+    if (err.name === 'AbortError') return res.status(504).json({ ok: false, error: 'title generation timed out' });
+    console.error('[ollama-chat] POST /title failed:', err.message);
+    return res.status(502).json({ ok: false, error: err.message });
+  } finally {
+    clearTimeout(timer);
+  }
 });
 
 /* ---------- 對話存取（project / subject） ---------- */

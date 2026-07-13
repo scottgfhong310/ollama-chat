@@ -1,6 +1,6 @@
 # ollama-chat — 設計決議（為什麼長這樣）
 
-> 版本 v1.1｜最後更新 2026-07-12
+> 版本 v1.2｜最後更新 2026-07-13
 
 「怎麼用」見 [README](./README.zh-Hant.md)；家族共同規範見
 [nodeapp-webapp-family](https://github.com/scottgfhong310/nodeapp-webapp-family)（此處只記本 app 特有的取捨）。
@@ -79,6 +79,32 @@ v1 是扁平陣列、`role` user/assistant 交替；v2 引入後**只在 `GET /s
 `uniqueName()` 對既有名單加 `-2、-3…` 後綴，防同名**整檔覆寫**掉舊對話
 （後端 `POST /subject` 本身是 upsert 語意，衝突防護做在建立端）。
 `inbox` 是資料（資料夾名），不隨 UI 語言翻譯。
+
+### 5.1 「新對話」modal 的 Subject 可留空 → 由 Ollama 依首個 prompt 命名
+
+「新對話」modal 的 Subject 欄位可留空（Project 仍必填，預設 `inbox`）。流程：
+
+1. 建立當下**還沒有任何 prompt**，無從推導標題——先用既有的 `'chat-' + timestamp()` fallback
+   當暫時檔名（`ensureSubject()` 原本就有這個 fallback，這裡是重用，不是新發明一套命名法），
+   `state.needsAutoTitle = true` 記下「這個名字是暫時的」。
+2. 使用者送出第一則訊息時，`send()` 除了照常開始串流回覆，**同時**背景呼叫
+   `POST /api/ollama-chat/title { model, prompt }`——非串流、20s 逾時，用一句系統提示要模型
+   給 3–6 字的短標題。與正式回覆**並行**（不 await 它才開始串流），不拖慢對話本身的第一個 token。
+3. 拿到標題後，走**既有的 `POST /rename`**（`fs.rename`＋409 防覆蓋）把暫時檔名換成標題——
+   複用 subject 改名的既有基礎設施，不必另開一套「建立時就地命名」的邏輯。
+4. 標題生成失敗（Ollama 掛了、逾時、輸出清消毒後是空字串）→ **靜默失敗**（`console.warn`，
+   不彈 toast）：暫時檔名本身就是合法可用的 subject，不影響對話能不能繼續；使用者也能隨時手動改名。
+
+**標題文字的合法性交給既有機制**：後端 `/title` 只做「小型本地模型常見不聽話」的保底清理
+（掐第一行、去引號、去 `Title:` 前綴、去 markdown 符號），**不**重複做檔名合法性驗證——
+前端拿到後照樣過 `autoName()`（同一套用在 fallback 截斷的消毒/截斷規則），最終落地前
+`POST /rename` 內的 `sanitizeName()` 再把關一次（雙層防禦，見 §1 名稱即路徑）。
+
+**已知邊界**：`needsAutoTitle` 只存在記憶體，不落地。若使用者建立留空的新對話後，
+在送出第一則訊息**之前**就切去別的 subject，之後回來時視同「已命名」（`openSubject()`
+一律清掉這個旗標）——保留 `chat-<timestamp>` 這個暫時名稱、不會再自動觸發命名。
+這是刻意的簡化：比起用檔名 pattern／訊息數推回「這其實還沒命名」的脆弱判斷，
+接受這個邊界情況、讓使用者自己手動改名更划算。
 
 ## 5.5 Prompt 樣板庫：另一個儲存面
 

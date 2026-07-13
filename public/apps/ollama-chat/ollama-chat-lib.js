@@ -42,6 +42,8 @@
  *   OllamaChatLib.uniqueName(name, taken)       → string      與既有清單衝突時加 -2、-3…
  *   OllamaChatLib.listModels()                  → Promise<Array<{name,size,modifiedAt}>>
  *   OllamaChatLib.chatStream({model,messages,signal,onChunk}) → Promise<{content,stats,aborted}>
+ *   OllamaChatLib.generateTitle({model,prompt}) → Promise<string>  非串流，依首個 prompt 生短標題
+ *                                                  （新對話 Subject 留空時用；20s 逾時／失敗皆 reject）
  *   OllamaChatLib.getTree()                     → Promise<Array<project>>
  *   OllamaChatLib.loadSubject(project, name)    → Promise<chat>
  *   OllamaChatLib.saveSubject(project, name, chat) → Promise<{updatedAt}>
@@ -64,6 +66,7 @@
   var API_BASE = '/api/' + FOLDER;
   var MODELS_API = API_BASE + '/models';
   var CHAT_API = API_BASE + '/chat';
+  var TITLE_API = API_BASE + '/title';
   var TREE_API = API_BASE + '/tree';
   var SUBJECT_API = API_BASE + '/subject';
   var DELETE_API = API_BASE + '/delete';
@@ -334,6 +337,14 @@
     });
   }
 
+  // 依首個 prompt 生一句短標題（非串流，「新對話」Subject 留空時的背景任務用）。
+  // 回傳的原始文字只做過伺服器端輕度清理（去引號/markdown）；呼叫端仍應套 autoName()
+  // 才能保證是合法檔名——這裡刻意不重複做，單一套規則在 autoName()。
+  function generateTitle(opts) {
+    return postJson(TITLE_API, { model: opts.model, prompt: opts.prompt })
+      .then(function (d) { return d.title; });
+  }
+
   /* ---------- 匯出 ---------- */
 
   // 匯出成 Markdown（資料內容原樣、不翻譯；標頭用中性英文欄位名）。
@@ -384,6 +395,7 @@
     uniqueName: uniqueName,
     listModels: listModels,
     chatStream: chatStream,
+    generateTitle: generateTitle,
     getTree: getTree,
     loadSubject: loadSubject,
     saveSubject: saveSubject,

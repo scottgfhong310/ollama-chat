@@ -1,6 +1,6 @@
 # ollama-chat
 
-> 版本 v1.0｜最後更新 2026-07-11
+> 版本 v1.1｜最後更新 2026-07-13
 
 [English] | [繁體中文](README.zh-Hant.md) | [日本語](README.ja.md)
 
@@ -18,7 +18,7 @@ Not compatible with GitHub Pages (requires the Node backend).
 - **Project / subject library**: every conversation is one JSON file under `chats/<project>/<subject>.json` — plain files, no database, no registry to drift.
 - **Prompt index**: every user prompt in a subject is listed in a slide-in panel; clicking one scrolls to that exchange.
 - **Prompt templates**: a global, cross-conversation template library (single `prompts.json`); save the current input as a template, click a template to insert it at the input cursor, delete with backup.
-- **Auto-naming**: typing without opening a subject creates one named from your first prompt, stored under `inbox`.
+- **Auto-naming**: typing without opening a subject creates one named from your first prompt, stored under `inbox`. In the "New chat" dialog, the Subject field can also be left blank — once you send the first message, Ollama generates a short title in the background and the conversation is renamed to it.
 - **Markdown replies** with fenced-code copy buttons; user content is never translated or altered.
 - **Rename / move**: retitle a subject or move it to another project from the side rail (name = path; refuses to overwrite an existing target).
 - **Export** any subject as Markdown (`<subject>-yyyyMMddHHmmss.md`).
@@ -53,6 +53,7 @@ public/upload/ollama-chat/chats/    # conversations (not committed)
 |---|---|---|
 | GET | `/api/ollama-chat/models` | Proxy of Ollama `/api/tags` → `{ ok, models }` |
 | POST | `/api/ollama-chat/chat` | Proxy of Ollama `/api/chat` (streaming NDJSON pass-through; errors return `{ ok:false, error }`) |
+| POST | `/api/ollama-chat/title` | `{ model, prompt }` — non-streaming call that generates a short conversation title → `{ ok, title }` (20s timeout) |
 | GET | `/api/ollama-chat/tree` | Scan `chats/` → `{ ok, projects: [{ name, subjects }] }` |
 | GET | `/api/ollama-chat/subject?project=&name=` | Read one subject → `{ ok, chat }` |
 | POST | `/api/ollama-chat/subject` | `{ project, name, chat }` — write (overwrite) one subject |
