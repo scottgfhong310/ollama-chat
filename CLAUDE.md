@@ -82,8 +82,11 @@ npm install && node app.js          # → http://localhost:3000/apps/ollama-chat
   `overflow-y:auto` 裁掉）。`#project-picker` 是 body 級浮動 `<ul>`（不巢狀在 modal 內），
   `position:fixed` 座標由 `openProjectPicker()` 依輸入框 `getBoundingClientRect()` 現算；
   `focus`／`input` 都會開（不必等打字），選項綁 `mousedown`+`preventDefault`（早於 `blur`，
-  避免點擊因欄位先失焦而落空）。篩選對輸入值做 substring match，找不到就直接隱藏——使用者
-  仍可自由打全新 project 名稱建立新資料夾，不受限於既有清單。
+  避免點擊因欄位先失焦而落空）。**focus／點擊開啟時顯示全部 project、只有實際打字（input）
+  才拿現值做 substring 篩選**（`openProjectPicker(useFilter)`）——關鍵：rename 模式的欄位預填
+  「目前所在的 project」，若 focus 也照現值篩選就只剩它自己、把「其他可搬去的 project」全濾掉，
+  使用者體感就是「搬不動」（實際踩過的 bug）。目前所在的那個標 `.sel` 淡標示。找不到相符就隱藏
+  ——仍可自由打全新 project 名稱建立新資料夾，不受限於既有清單。
 - **markdown → HTML 在控制器不在 lib**（DOM 工作）：marked（鎖 `12.0.2`）+ DOMPurify（鎖 `3.1.6`），
   連結一律 `target=_blank rel=noopener`；串流中 120ms 節流全文重繪；完成後補 §4.5 式複製鈕
   （light DOM，可用 Material Icons，不必 inline SVG）。

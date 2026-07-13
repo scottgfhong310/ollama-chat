@@ -863,3 +863,9 @@ body.is-empty .empty-state {
 .project-picker li:hover {
   background: rgba(127, 127, 127, 0.14);
 }
+
+/* 目前所在的 project（rename 模式預填值）：淡標示「你在這」，仍可點；搬移是選「其他」的那個 */
+.project-picker li.sel {
+  color: var(--accent);
+  font-weight: 600;
+}

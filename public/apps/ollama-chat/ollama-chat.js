@@ -273,9 +273,14 @@
 
   function projectPickerEl() { return document.getElementById('project-picker'); }
 
-  function openProjectPicker() {
+  // useFilter：只有使用者「實際打字」（input 事件）時才拿欄位現值當篩選；focus／點擊開啟時
+  // 一律顯示全部 project。關鍵：rename 模式的 Project 欄位預填「目前所在的 project」，若 focus
+  // 也照現值篩選，就只會剩它自己那一個、把「其他可搬去的 project」全濾掉——使用者體感就是
+  // 「有下拉但沒有別的選項可選＝搬不動」。目前所在的那個標 .sel（淡標示，非停用）。
+  function openProjectPicker(useFilter) {
     var input = document.getElementById('new-project');
-    var q = input.value.trim().toLowerCase();
+    var cur = input.value.trim();
+    var q = useFilter ? cur.toLowerCase() : '';
     var names = state.tree.map(function (p) { return p.name; })
       .filter(function (n) { return !q || n.toLowerCase().indexOf(q) !== -1; });
     var picker = projectPickerEl();
@@ -284,7 +289,8 @@
       return;
     }
     picker.innerHTML = names.map(function (n) {
-      return '<li data-value="' + _.escape(n) + '">' + _.escape(n) + '</li>';
+      var sel = (n === cur) ? ' class="sel"' : '';
+      return '<li' + sel + ' data-value="' + _.escape(n) + '">' + _.escape(n) + '</li>';
     }).join('');
     var r = input.getBoundingClientRect();
     picker.style.left = r.left + 'px';
@@ -993,12 +999,14 @@
       confirmModal();
     });
 
-    // Project 欄位下拉挑選：focus／輸入就開（不必等打字才觸發，這是原生 datalist 的痛點）；
+    // Project 欄位下拉挑選：focus／點擊就開（顯示全部 project，不必等打字——這是原生 datalist
+    // 的痛點）；實際打字（input）才拿現值篩選。注意必須用包裹函式傳明確布林，不能直接把
+    // openProjectPicker 當 listener——那樣第一個參數會是 Event 物件（truthy），focus 時也會誤篩。
     // blur 延遲關閉，讓下面 li 的 mousedown 有機會先跑完（mousedown 早於 blur，且 preventDefault
     // 讓 input 不會提前失焦），否則點擊會因為 blur 先關閉面板而落空。
     var projectInput = document.getElementById('new-project');
-    projectInput.addEventListener('focus', openProjectPicker);
-    projectInput.addEventListener('input', openProjectPicker);
+    projectInput.addEventListener('focus', function () { openProjectPicker(false); });
+    projectInput.addEventListener('input', function () { openProjectPicker(true); });
     projectInput.addEventListener('blur', function () {
       setTimeout(closeProjectPicker, 150);
     });
