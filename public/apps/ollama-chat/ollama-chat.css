@@ -99,6 +99,21 @@ body.tree-closed #tree-pane {
   word-break: break-all;
 }
 
+.tree-collapse-all {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: 20px;
+  padding: 3px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--muted);
+}
+
+.tree-collapse-all:hover {
+  background: rgba(127, 127, 127, 0.10);
+  color: var(--text);
+}
+
 #tree {
   flex: 1;
   padding: 6px 0 24px;

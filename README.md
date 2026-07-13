@@ -1,6 +1,6 @@
 # ollama-chat
 
-> 版本 v1.2｜最後更新 2026-07-13
+> 版本 v1.3｜最後更新 2026-07-13
 
 [English] | [繁體中文](README.zh-Hant.md) | [日本語](README.ja.md)
 
@@ -15,7 +15,7 @@ Not compatible with GitHub Pages (requires the Node backend).
 ## Features
 
 - **Streaming chat** with any locally installed Ollama model (model picker with sizes; stop button aborts generation all the way up to Ollama).
-- **Project / subject library**: every conversation is one JSON file under `chats/<project>/<subject>.json` — plain files, no database, no registry to drift.
+- **Project / subject library**: every conversation is one JSON file under `chats/<project>/<subject>.json` — plain files, no database, no registry to drift. Both project and subject have a stable `uid`, stored in a marker/JSON file alongside them. A collapse/expand-all toggle sits next to the library header.
 - **Prompt index**: every user prompt in a subject is listed in a slide-in panel; clicking one scrolls to that exchange.
 - **Prompt templates**: a global, cross-conversation template library (single `prompts.json`); save the current input as a template, click a template to insert it at the input cursor, delete with backup.
 - **Auto-naming**: typing without opening a subject creates one named from your first prompt, stored under `inbox`. In the "New chat" dialog, the Subject field can also be left blank — once you send the first message, Ollama generates a short title in the background and the conversation is renamed to it.
@@ -55,7 +55,7 @@ public/upload/ollama-chat/chats/    # conversations (not committed)
 | GET | `/api/ollama-chat/models` | Proxy of Ollama `/api/tags` → `{ ok, models }` |
 | POST | `/api/ollama-chat/chat` | Proxy of Ollama `/api/chat` (streaming NDJSON pass-through; errors return `{ ok:false, error }`) |
 | POST | `/api/ollama-chat/title` | `{ model, prompt }` — non-streaming call that generates a short conversation title → `{ ok, title }` (20s timeout) |
-| GET | `/api/ollama-chat/tree` | Scan `chats/` → `{ ok, projects: [{ name, subjects }] }` |
+| GET | `/api/ollama-chat/tree` | Scan `chats/` → `{ ok, projects: [{ name, uid, subjects }] }` |
 | GET | `/api/ollama-chat/subject?project=&name=` | Read one subject → `{ ok, chat, project, name }` |
 | GET | `/api/ollama-chat/subject?uid=` | Locate a subject by uid (immune to rename/move) → `{ ok, chat, project, name }` |
 | POST | `/api/ollama-chat/subject` | `{ project, name, chat }` — write (overwrite) one subject |
@@ -122,6 +122,7 @@ the exchange is treated as if it never happened, not just visually tucked away.
   "projects": [
     {
       "name": "inbox",
+      "uid": "988b699d-...",           // stable project id (marker file chats/inbox/.project.json); data model only, no deep link yet
       "subjects": [
         { "name": "…", "updatedAt": "20260711000102", "model": "qwen2.5:latest", "turnCount": 4 }
       ]

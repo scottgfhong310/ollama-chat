@@ -1,9 +1,9 @@
 # ollama-chat — Session context
 
-> 版本 v1.3｜最後更新 2026-07-13
+> 版本 v1.4｜最後更新 2026-07-13
 
-本地 **Ollama** 模型的全版面 Web 聊天介面：**project（資料夾）→ subject（一組對話＝一個 JSON 檔，
-帶穩定 `uid`）→ turn（request-response 配對，`uid`/`serial`）**。串流回覆（NDJSON 直通）、
+本地 **Ollama** 模型的全版面 Web 聊天介面：**project（資料夾，帶穩定 `uid`）→ subject（一組對話＝
+一個 JSON 檔，帶穩定 `uid`）→ turn（request-response 配對，`uid`/`serial`）**。串流回覆（NDJSON 直通）、
 markdown 渲染（marked + DOMPurify）、自動命名（首句 → subject、落 `inbox`；「新對話」Subject
 留空時改由 Ollama 依首個 prompt 背景命名）、prompt 可隱藏（索引＋對話區＋context＋匯出同步排除）、
 匯出 Markdown、深連結 `?uid=<subject uid>`（rename-stable；舊格式 `?project=&subject=` 仍可開，
@@ -52,8 +52,14 @@ npm install && node app.js          # → http://localhost:3000/apps/ollama-chat
   全目錄掃描比對定位（`findSubjectByUid()`）。舊檔缺 `uid` 時讀取當下補產生**並立即寫回磁碟**
   ——是全專案唯一的「讀觸發寫」例外（v1→v2 turn 遷移不落地，這裡必須落地，因為 uid 一旦被記進
   網址列就必須穩定）。舊格式 `?project=&subject=` 深連結仍可開，開啟後 `replaceState` 就地升級成
-  `?uid=`。改名成功後**不需要**也**不會**改網址。詳見 DESIGN.md §1.2。project 沒有對應 uid
-  （裸資料夾無檔案可掛 id，加 marker 檔/registry 違反「名稱即路徑」原則）——僅 subject 這層有。
+  `?uid=`。改名成功後**不需要**也**不會**改網址。詳見 DESIGN.md §1.2。
+- **project 也有 `uid`**（marker 檔 `chats/<project>/.project.json`，`{ uid, createdAt }`）：裸資料夾
+  沒有檔案可掛 id，比照 subject「把 identity 存進自己的檔案」延伸出這個 marker。`GET /tree`
+  逐一 project 讀取時補建（`ensureProjectUid()`，同一套「讀觸發寫」邏輯）；`rename`/`delete` 清空
+  project 最後一個 subject 時，`rmEmptyProjectDir()` 連 marker 一併刪除再 `rmdir`，維持「project
+  隨最後一個 subject 消失、uid 跟著失效」的行為不變。**目前只做資料模型，沒有對應深連結**
+  （不像 subject uid 一開始就是為了 `?uid=`）——純粹讓 project 與 subject 在結構上對稱，之後
+  真有用途（例如 project 層深連結）再擴充。詳見 DESIGN.md §1.3。
 - **可嵌入 lib** `ollama-chat-lib.js`（`window.OllamaChatLib`，純邏輯、不碰 DOM）：
   `chatStream()`（fetch ReadableStream 逐行解析 NDJSON、AbortController 中止）、
   `newTurn`/`newResponse`（建構子，`genUid` 用 `crypto.randomUUID`）、
@@ -103,6 +109,11 @@ npm install && node app.js          # → http://localhost:3000/apps/ollama-chat
   串流中僅擋「目標＝開啟中對話」。
 - **popstate 防護**：modal 的 `<a href="#!">` hash 變化也會觸發 popstate——handler 先比對
   `?uid=`（或舊格式 `?project=&subject=`）與目前 state，相同就忽略（避免無謂重載）。
+- **`#tree-collapse-all`（對話庫標題列右側 icon）**：一鍵收合／展開全部 project。是**聚合狀態
+  的切換鈕**，不是固定的收合鈕——icon／title 反映「點下去會發生的事」：只要還有任一 project
+  展開就顯示「全部收合」，全部都收合了才變成「全部展開」；個別 project 自己的 `proj-head`
+  收合也會同步更新這顆聚合 icon（`updateCollapseAllIcon()`）。收合狀態只在記憶體
+  （`state.collapsed`），不落地。
 - **複製件登記**（共用件改版時靠這份清單同步）：`materialize-dark.css` ←家族 repo、
   `side-tool.css` ←html-viewer（〔正統〕flex 版）、`thinking-dot.css` ←markdown-library（canonical）、
   `i18n.js` ←html-viewer（家族 30 份複製點之一）、`LICENSE` ←家族。

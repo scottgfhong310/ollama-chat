@@ -13,7 +13,8 @@
  *                                    最終合法檔名交前端 autoName() 與後端 /rename 的 sanitizeName 把關
  *
  * 對話存取（project=資料夾、subject=JSON 檔；純檔案掃描，無 registry）：
- *   GET  /api/ollama-chat/tree      → 掃 chats/ 建 project→subject 樹（讀各檔 meta）
+ *   GET  /api/ollama-chat/tree      → 掃 chats/ 建 project→subject 樹（讀各檔 meta；project 帶 uid，
+ *                                     見 ensureProjectUid／.project.json marker，DESIGN.md §1.2）
  *   GET  /api/ollama-chat/subject   → ?project=&name= 或 ?uid=<uid> 讀一個 subject JSON
  *                                     （讀到 v1 舊格式扁平陣列會自動遷移成 v2 turn 結構再回傳，見 migrateFlatToTurns；
  *                                     缺 chat.uid 會即時補一個並落地——uid 要穩定，這裡是唯一的「讀順手寫」例外，見 DESIGN.md §1.2）
@@ -55,6 +56,10 @@ const router = express.Router();
 const UPLOAD_ROOT = path.join(__dirname, '..', 'public', 'upload', 'ollama-chat');
 const CHATS_DIR = path.join(UPLOAD_ROOT, 'chats');
 const BAK_DIR = path.join(CHATS_DIR, '.bak');
+
+// project 是裸資料夾，本身沒有檔案可掛 id——比照 subject 把 uid 存進「自己的檔案」這個
+// 既有模式，給它一個同目錄下的隱藏 marker 檔（isVisible 已濾掉 . 開頭，不會被誤認成 subject）。
+const PROJECT_MARKER = '.project.json';
 
 // Prompt 樣板庫：全域單檔（另一個儲存面，與對話分開）；備份收 UPLOAD_ROOT/.bak/
 const PROMPTS_FILE = path.join(UPLOAD_ROOT, 'prompts.json');
@@ -216,6 +221,35 @@ async function findSubjectByUid(uid) {
     }
   }
   return null;
+}
+
+// project 的 uid：讀 marker 檔，缺的話當場生成並落地（同一套「讀順手寫」邏輯，見 subject.uid、
+// DESIGN.md §1.2）。呼叫端保證 projDirAbs 已存在（GET /tree 只對已列出的目錄呼叫）。
+async function ensureProjectUid(projDirAbs) {
+  const markerPath = path.join(projDirAbs, PROJECT_MARKER);
+  try {
+    const j = JSON.parse(await fs.readFile(markerPath, 'utf8'));
+    if (typeof j.uid === 'string' && j.uid) return j.uid;
+  } catch (e) { /* 不存在或壞檔 → 補建 */ }
+  const uid = crypto.randomUUID();
+  await fs.writeFile(markerPath, JSON.stringify({ uid, createdAt: timestamp() }, null, 2) + '\n', 'utf8');
+  return uid;
+}
+
+// project 夾清空後嘗試移除（rename/delete 搬走最後一個 subject 時）。多了 marker 檔以後，
+// 「清空」要連 marker 一併算——只剩 marker 就先刪它再 rmdir，維持「project 隨最後一個 subject
+// 離開而消失、uid 跟著失效」這個改動前就有的行為，不留下只有 marker 的空殼 project。非關鍵操作，
+// 失敗（含目錄仍有其他 subject）一律忽略。
+async function rmEmptyProjectDir(dir) {
+  try {
+    const entries = await fs.readdir(dir);
+    if (entries.length === 0) {
+      await fs.rmdir(dir);
+    } else if (entries.length === 1 && entries[0] === PROJECT_MARKER) {
+      await fs.unlink(path.join(dir, PROJECT_MARKER));
+      await fs.rmdir(dir);
+    }
+  } catch (e) { /* ENOTEMPTY（還有其他 subject）等，忽略 */ }
 }
 
 /* ---------- Ollama proxy ---------- */
@@ -390,7 +424,8 @@ router.get('/tree', async (req, res) => {
         subjects.push({ name, ...meta });
       }
       subjects.sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
-      projects.push({ name: dir.name, subjects });
+      const uid = await ensureProjectUid(projDir);
+      projects.push({ name: dir.name, uid, subjects });
     }
     projects.sort((a, b) => a.name.localeCompare(b.name));
     return res.json({ ok: true, projects });
@@ -470,8 +505,8 @@ router.post('/rename', async (req, res) => {
 
     await fs.mkdir(path.dirname(dst.abs), { recursive: true });
     await fs.rename(src.abs, dst.abs);
-    // 原 project 夾清空後順手移除（非關鍵，失敗忽略）
-    try { await fs.rmdir(path.dirname(src.abs)); } catch (e) { /* ENOTEMPTY 等，忽略 */ }
+    // 原 project 夾清空後順手移除（含 marker，見 rmEmptyProjectDir）
+    await rmEmptyProjectDir(path.dirname(src.abs));
     console.log('[ollama-chat] POST /rename →',
       src.project + '/' + src.name, '→', dst.project + '/' + dst.name);
     return res.json({ ok: true, project: dst.project, name: dst.name });
@@ -491,8 +526,8 @@ router.post('/delete', async (req, res) => {
     await fs.mkdir(BAK_DIR, { recursive: true });
     const bak = path.join(BAK_DIR, loc.project + '__' + loc.name + '-' + timestamp() + '.json.bak');
     await fs.rename(loc.abs, bak);
-    // project 夾清空後順手移除（非關鍵，失敗忽略）
-    try { await fs.rmdir(path.dirname(loc.abs)); } catch (e) { /* ENOTEMPTY 等，忽略 */ }
+    // project 夾清空後順手移除（含 marker，見 rmEmptyProjectDir）
+    await rmEmptyProjectDir(path.dirname(loc.abs));
     console.log('[ollama-chat] POST /delete →', loc.project + '/' + loc.name, '→ .bak');
     return res.json({ ok: true, project: loc.project, name: loc.name });
   } catch (err) {

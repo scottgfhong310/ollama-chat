@@ -1,6 +1,6 @@
 # ollama-chat
 
-> 版本 v1.2｜最後更新 2026-07-13
+> 版本 v1.3｜最後更新 2026-07-13
 
 [English](README.md) | [繁體中文] | [日本語](README.ja.md)
 
@@ -15,7 +15,7 @@ light/dark 主題。輕量 Express 後端（Ollama proxy＋對話存取）。
 ## 功能
 
 - **串流對話**：任何已安裝的 Ollama 模型（模型選單附大小；停止鍵會一路中止到 Ollama 端）。
-- **project / subject 對話庫**：一組對話＝一個 JSON 檔，放在 `chats/<project>/<subject>.json`——純檔案、無資料庫、無 registry 可失同步。
+- **project / subject 對話庫**：一組對話＝一個 JSON 檔，放在 `chats/<project>/<subject>.json`——純檔案、無資料庫、無 registry 可失同步；project／subject 都有各自的穩定 `uid`，收在同目錄的 marker/JSON 檔裡。左欄標題列有一鍵收合／展開全部 project 的按鈕。
 - **Prompt 索引**：subject 內所有 user 發言列成滑出面板，點一條就捲到那一問一答。
 - **Prompt 樣板庫**：全域跨對話的樣板清單（單檔 `prompts.json`）——把目前輸入存成樣板、點樣板插入輸入框游標處、刪除有備份。
 - **自動命名**：沒開 subject 直接輸入，會以第一句自動命名、存進 `inbox`。「新對話」對話框的 Subject 欄也可留空——送出第一則訊息後，由 Ollama 在背景生成一句短標題並自動改名。
@@ -55,7 +55,7 @@ public/upload/ollama-chat/chats/    # 對話內容（不進版控）
 | GET | `/api/ollama-chat/models` | 轉 Ollama `/api/tags` → `{ ok, models }` |
 | POST | `/api/ollama-chat/chat` | 轉 Ollama `/api/chat`（NDJSON 串流直通；失敗回 `{ ok:false, error }`） |
 | POST | `/api/ollama-chat/title` | `{ model, prompt }`——非串流，生一句短對話標題 → `{ ok, title }`（20s 逾時） |
-| GET | `/api/ollama-chat/tree` | 掃 `chats/` → `{ ok, projects: [{ name, subjects }] }` |
+| GET | `/api/ollama-chat/tree` | 掃 `chats/` → `{ ok, projects: [{ name, uid, subjects }] }` |
 | GET | `/api/ollama-chat/subject?project=&name=` | 讀一個 subject → `{ ok, chat, project, name }` |
 | GET | `/api/ollama-chat/subject?uid=` | 用 uid 定位讀一個 subject（改名/搬 project 免疫）→ `{ ok, chat, project, name }` |
 | POST | `/api/ollama-chat/subject` | `{ project, name, chat }`——整檔覆寫存檔 |
@@ -119,6 +119,7 @@ public/upload/ollama-chat/chats/    # 對話內容（不進版控）
   "projects": [
     {
       "name": "inbox",
+      "uid": "988b699d-...",           // project 穩定 id（marker 檔 chats/inbox/.project.json）；目前僅資料模型，未接深連結
       "subjects": [
         { "name": "…", "updatedAt": "20260711000102", "model": "qwen2.5:latest", "turnCount": 4 }
       ]

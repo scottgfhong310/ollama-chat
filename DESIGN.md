@@ -1,6 +1,6 @@
 # ollama-chat — 設計決議（為什麼長這樣）
 
-> 版本 v1.5｜最後更新 2026-07-13
+> 版本 v1.6｜最後更新 2026-07-13
 
 「怎麼用」見 [README](./README.zh-Hant.md)；家族共同規範見
 [nodeapp-webapp-family](https://github.com/scottgfhong310/nodeapp-webapp-family)（此處只記本 app 特有的取捨）。
@@ -72,10 +72,29 @@ v1 是扁平陣列、`role` user/assistant 交替；v2 引入後**只在 `GET /s
   - 改名（手動或 §5.1 自動命名）成功後**完全不碰網址**——這正是這個設計要達成的效果：
     `uid` 沒變，`?uid=` 網址本來就還有效，不需要 `history.replaceState`（v1.4 以前的
     `renameFromModal`／`maybeAutoTitle` 各自都有一段改網址的程式碼，v1.5 拿掉了）。
-- **project 沒有對應的 uid**：project 是裸資料夾、沒有檔案可以存 id；要給它 id 得另開一個
-  marker 檔或全域 registry，兩者都違反 §1「名稱即路徑、單一真相」的原則，成本明顯高於
-  subject（subject 本來就有自己的 JSON 檔可以掛）。目前只做 subject 這一層；「調整 subject
-  所在的 project」這個需求本來就已經被改名 modal 的可編輯 Project 欄位滿足，不需要 project uid。
+### 1.3 project `uid`（marker 檔，補做）
+
+§1.2 上線時原本判斷 project 不需要 uid——「調整 subject 所在的 project」已經被改名 modal
+的可編輯 Project 欄位滿足；owner 後續仍要求補上，讓 project 在資料模型上與 subject 對稱。
+
+- **怎麼給裸資料夾一個 id**：project 本身沒有檔案可以掛 uid，於是在該資料夾內放一個隱藏
+  marker 檔 `chats/<project>/.project.json`（`{ uid, createdAt }`）——這正是 subject 已經在用
+  的「identity 存進自己的檔案」模式的延伸，比另開全域 registry（會製造第二份可能失同步的
+  project 清單）更貼近 §1「名稱即路徑、單一真相」；代價是每個 project 多一個看不見的檔案，
+  但 `isVisible()` 本來就濾掉 `.` 開頭的項目，不會被誤認成 subject 或污染樹狀顯示。
+- **產生時機＝讀時補建**：`ensureProjectUid()` 在 `GET /tree` 逐一 project 時呼叫，marker 不存在
+  就當場生成並寫入——跟 subject uid 的「讀觸發寫」是同一套邏輯（見 §1.2），差別是這裡連讀取
+  路徑本身都只有一種（沒有 `?uid=` 查詢分支，因為目前沒有 project 層的深連結需求），純粹是
+  資料模型補完，不做新的定址功能。
+- **清空 project 時 marker 要一併處理**：`rename`／`delete` 把某 project 的最後一個 subject
+  搬走／刪除後，原本就會嘗試 `fs.rmdir` 清空的資料夾；多了 marker 檔後空資料夾不再是真的空
+  （還有一個 `.project.json`），`rmdir` 會因 `ENOTEMPTY` 失敗、留下只剩 marker 的空殼 project。
+  `rmEmptyProjectDir()` 因此先判斷「只剩 marker」的情況、連 marker 一併刪除再 `rmdir`，維持
+  「project 隨最後一個 subject 離開而消失、uid 跟著失效」這個改動前就有的行為不變。
+- **v1.6 只做資料模型，不做深連結**：`GET /tree` 回應每個 project 帶 `uid`，但目前沒有對應的
+  `?project_uid=` 之類的深連結端點或前端使用——與 subject uid（§1.2，一開始就是為了深連結而做）
+  出發點不同，純粹是先把 id 準備好；真的要用在畫面上（例如以 project uid 取代明文名稱查詢）
+  再視需求擴充，不預先假設用途。
 
 ## 2. Ollama 走後端 proxy，不由前端直打 11434
 

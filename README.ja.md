@@ -1,6 +1,6 @@
 # ollama-chat
 
-> 版本 v1.2｜最後更新 2026-07-13
+> 版本 v1.3｜最後更新 2026-07-13
 
 [English](README.md) | [繁體中文](README.zh-Hant.md) | [日本語]
 
@@ -15,7 +15,7 @@ GitHub Pages には非対応（Node バックエンドが必要）。
 ## 機能
 
 - **ストリーミングチャット**：インストール済みの任意の Ollama モデル（サイズ付きモデル選択；停止ボタンは Ollama 側まで生成を中止）。
-- **project / subject ライブラリ**：1 会話＝1 JSON ファイル（`chats/<project>/<subject>.json`）——プレーンファイルのみ、DB もレジストリも不要。
+- **project / subject ライブラリ**：1 会話＝1 JSON ファイル（`chats/<project>/<subject>.json`）——プレーンファイルのみ、DB もレジストリも不要。project／subject はそれぞれ安定した `uid` を持ち、同じディレクトリ内の marker/JSON ファイルに保存される。ライブラリ見出しの横に全 project 一括折りたたみ／展開ボタンがある。
 - **プロンプト索引**：subject 内のすべてのユーザー発言をスライドインパネルに一覧表示；クリックでそのやり取りへスクロール。
 - **プロンプトのテンプレート**：会話をまたぐグローバルなテンプレート集（単一の `prompts.json`）——現在の入力を保存、クリックで入力欄のカーソル位置に挿入、削除はバックアップ付き。
 - **自動命名**：subject を開かずに入力すると、最初の一文から命名され `inbox` に保存。「新しい会話」ダイアログの Subject 欄も空欄のままでよく、最初のメッセージ送信後に Ollama がバックグラウンドで短いタイトルを生成し、自動的に改名される。
@@ -55,7 +55,7 @@ public/upload/ollama-chat/chats/    # 会話データ（コミットしない）
 | GET | `/api/ollama-chat/models` | Ollama `/api/tags` のプロキシ → `{ ok, models }` |
 | POST | `/api/ollama-chat/chat` | Ollama `/api/chat` のプロキシ（NDJSON ストリームをそのまま通過；エラー時は `{ ok:false, error }`） |
 | POST | `/api/ollama-chat/title` | `{ model, prompt }`——非ストリーミング、短い会話タイトルを生成 → `{ ok, title }`（20秒でタイムアウト） |
-| GET | `/api/ollama-chat/tree` | `chats/` をスキャン → `{ ok, projects: [{ name, subjects }] }` |
+| GET | `/api/ollama-chat/tree` | `chats/` をスキャン → `{ ok, projects: [{ name, uid, subjects }] }` |
 | GET | `/api/ollama-chat/subject?project=&name=` | subject を 1 件読む → `{ ok, chat, project, name }` |
 | GET | `/api/ollama-chat/subject?uid=` | uid で subject を特定して読む（改名／project 移動の影響を受けない）→ `{ ok, chat, project, name }` |
 | POST | `/api/ollama-chat/subject` | `{ project, name, chat }`——ファイル全体を上書き保存 |
@@ -122,6 +122,7 @@ Ollama に送るコンテキストにも Markdown エクスポートにも含ま
   "projects": [
     {
       "name": "inbox",
+      "uid": "988b699d-...",           // project の安定 id（marker ファイル chats/inbox/.project.json）；データモデルのみ、ディープリンク未対応
       "subjects": [
         { "name": "…", "updatedAt": "20260711000102", "model": "qwen2.5:latest", "turnCount": 4 }
       ]
