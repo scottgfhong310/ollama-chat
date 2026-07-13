@@ -77,16 +77,16 @@ npm install && node app.js          # → http://localhost:3000/apps/ollama-chat
   app CSS 只調間距／寬度。**Materialize 1.0 的 label 自動浮起在動態情境不可靠**——控制器自掛
   focus／input／blur 三個 listener 同步 `.active`（語意與其原生一致）。訊息氣泡則是本 app 自訂設計
   （user `--user-bubble` 圓角泡、assistant 無框全寬），非 Materialize 元件。
-- **改名／新對話 modal 的 Project 欄位是手刻下拉，不是原生 `<datalist>`**（家族 §5.11 版面坑）：
-  原生 datalist 在 Materialize modal 裡常常不彈出（單純 focus 不觸發、彈出了也常被 modal 的
-  `overflow-y:auto` 裁掉）。`#project-picker` 是 body 級浮動 `<ul>`（不巢狀在 modal 內），
-  `position:fixed` 座標由 `openProjectPicker()` 依輸入框 `getBoundingClientRect()` 現算；
-  `focus`／`input` 都會開（不必等打字），選項綁 `mousedown`+`preventDefault`（早於 `blur`，
-  避免點擊因欄位先失焦而落空）。**focus／點擊開啟時顯示全部 project、只有實際打字（input）
-  才拿現值做 substring 篩選**（`openProjectPicker(useFilter)`）——關鍵：rename 模式的欄位預填
-  「目前所在的 project」，若 focus 也照現值篩選就只剩它自己、把「其他可搬去的 project」全濾掉，
-  使用者體感就是「搬不動」（實際踩過的 bug）。目前所在的那個標 `.sel` 淡標示。找不到相符就隱藏
-  ——仍可自由打全新 project 名稱建立新資料夾，不受限於既有清單。
+- **改名／新對話 modal 的 Project 欄位＝Materialize `<select>`（`M.FormSelect`）＋「＋ 新 project…」
+  哨兵**（家族 §5.7 表單 canon、§5.11 版面坑）：**別用原生 `<datalist>`**——它在 Materialize modal
+  裡常常不彈出/被裁掉；但 Materialize Select 的下拉在同一個 modal 裡顯示正常（實測）。純 `<select>`
+  只能挑既有、不能自由輸入，所以 `renderProjectSelect()` 在 options 末項固定放一個哨兵 `<option>`
+  （值 `NEW_PROJECT_SENTINEL='/+new-project+/'`，含 `/`，`sanitizeName` 必拒＝保證不撞真實 project 名），
+  選它才展開下面的 `#new-project-custom` 輸入框打新名字（`onProjectSelectChange`）。`selectedProject()`
+  統一取值：選哨兵→取自訂輸入框、否則→取 select。每次開 modal 都 `M.FormSelect.getInstance().destroy()`
+  再 `init`（樹可能已變）。new 模式預設選 `state.project||inbox`（不在樹裡就 unshift 進去）。
+  **演進史**：`<input list>`+datalist（modal 內不彈）→ 手刻 body 級浮動下拉（能動但不夠原生）→
+  Materialize Select（現行，回歸家族 canon）。
 - **markdown → HTML 在控制器不在 lib**（DOM 工作）：marked（鎖 `12.0.2`）+ DOMPurify（鎖 `3.1.6`），
   連結一律 `target=_blank rel=noopener`；串流中 120ms 節流全文重繪；完成後補 §4.5 式複製鈕
   （light DOM，可用 Material Icons，不必 inline SVG）。

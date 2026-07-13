@@ -24,6 +24,8 @@ I18n.register('ja', {
   'tool.templates': 'プロンプトのテンプレート',
   'modal.title': '新しい会話',
   'modal.project': 'Project（フォルダ）',
+  'modal.newProjectOption': '＋ 新しい project…',
+  'modal.newProjectName': '新しい project 名',
   'modal.subject': 'Subject（テーマ）',
   'modal.subjectHintNew': '空欄のままなら、最初のメッセージ送信後に Ollama が自動的に命名します',
   'modal.create': '作成',

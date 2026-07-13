@@ -24,6 +24,8 @@ I18n.register('en', {
   'tool.templates': 'Prompt templates',
   'modal.title': 'New chat',
   'modal.project': 'Project (folder)',
+  'modal.newProjectOption': '＋ New project…',
+  'modal.newProjectName': 'New project name',
   'modal.subject': 'Subject (topic)',
   'modal.subjectHintNew': 'Leave blank to auto-name it from Ollama after your first message',
   'modal.create': 'Create',

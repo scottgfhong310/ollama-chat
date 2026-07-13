@@ -264,43 +264,62 @@
     });
   }
 
-  /* ---------- 新對話／改名 modal：Project 欄位下拉挑選 ----------
-     手刻小面板取代瀏覽器原生 <datalist>——datalist 的彈出層在 Materialize modal
-     （overflow-y:auto + will-change）裡常被裁掉或整個不出現，改成 body 級浮動元素
-     （見 index.html #project-picker），position:fixed 座標由 JS 依 input 位置計算，
-     完全跳出 modal 的 overflow/containing-block 問題。focus／輸入就開，不必等打字
-     才觸發（這正是原生 datalist 的痛點：純點擊 focus 不會顯示建議清單）。 */
+  /* ---------- 新對話／改名 modal：Project 欄位（Materialize 原生 <select>） ----------
+     用 Materialize <select>（M.FormSelect）而非原生 <datalist>——datalist 的彈出層在
+     Materialize modal 裡常常不彈出/被裁掉，但 Materialize Select 的下拉在同一個 modal 裡
+     顯示正常（實測，見家族 §5.11）。純 <select> 只能挑既有、不能自由輸入，所以清單末項固定
+     放一個「＋ 新 project…」哨兵 option，選了才展開下面的自訂輸入框——兼顧「挑既有」與「建
+     新資料夾」。哨兵值含 '/'，sanitizeName 必拒，保證永遠不會與任何真實 project 名相同。 */
 
-  function projectPickerEl() { return document.getElementById('project-picker'); }
+  var NEW_PROJECT_SENTINEL = '/+new-project+/';
 
-  // useFilter：只有使用者「實際打字」（input 事件）時才拿欄位現值當篩選；focus／點擊開啟時
-  // 一律顯示全部 project。關鍵：rename 模式的 Project 欄位預填「目前所在的 project」，若 focus
-  // 也照現值篩選，就只會剩它自己那一個、把「其他可搬去的 project」全濾掉——使用者體感就是
-  // 「有下拉但沒有別的選項可選＝搬不動」。目前所在的那個標 .sel（淡標示，非停用）。
-  function openProjectPicker(useFilter) {
-    var input = document.getElementById('new-project');
-    var cur = input.value.trim();
-    var q = useFilter ? cur.toLowerCase() : '';
-    var names = state.tree.map(function (p) { return p.name; })
-      .filter(function (n) { return !q || n.toLowerCase().indexOf(q) !== -1; });
-    var picker = projectPickerEl();
-    if (!names.length) {
-      picker.classList.remove('open');
-      return;
-    }
-    picker.innerHTML = names.map(function (n) {
-      var sel = (n === cur) ? ' class="sel"' : '';
-      return '<li' + sel + ' data-value="' + _.escape(n) + '">' + _.escape(n) + '</li>';
-    }).join('');
-    var r = input.getBoundingClientRect();
-    picker.style.left = r.left + 'px';
-    picker.style.top = r.bottom + 'px';
-    picker.style.width = r.width + 'px';
-    picker.classList.add('open');
+  // 依對話庫樹重建 select 的 options；selected 為要預選的 project（rename＝目前所在，new＝預設）。
+  // selected 不在樹裡時補進去（new 模式預設 inbox，但沒任何對話時 inbox 夾尚不存在＝不在樹裡）。
+  function renderProjectSelect(selected) {
+    var sel = document.getElementById('new-project-select');
+    var names = state.tree.map(function (p) { return p.name; });
+    if (selected && names.indexOf(selected) === -1) names.unshift(selected);
+    var opts = names.map(function (n) {
+      return '<option value="' + _.escape(n) + '"' + (n === selected ? ' selected' : '') + '>' +
+        _.escape(n) + '</option>';
+    });
+    opts.push('<option value="' + NEW_PROJECT_SENTINEL + '">' +
+      _.escape(I18n.t('modal.newProjectOption')) + '</option>');
+    sel.innerHTML = opts.join('');
+    var inst = M.FormSelect.getInstance(sel);
+    if (inst) inst.destroy();   // 每次開啟樹可能已變，重建才不會殘留舊選項
+    M.FormSelect.init(sel);
+    hideCustomProject();
   }
 
-  function closeProjectPicker() {
-    projectPickerEl().classList.remove('open');
+  function showCustomProject() {
+    document.getElementById('new-project-custom-wrap').style.display = '';
+    var input = document.getElementById('new-project-custom');
+    input.value = '';
+    M.updateTextFields();
+    input.focus();
+  }
+
+  function hideCustomProject() {
+    document.getElementById('new-project-custom-wrap').style.display = 'none';
+  }
+
+  // 選到哨兵＝展開自訂輸入框；選到真實 project＝收起。
+  function onProjectSelectChange() {
+    if (document.getElementById('new-project-select').value === NEW_PROJECT_SENTINEL) {
+      showCustomProject();
+    } else {
+      hideCustomProject();
+    }
+  }
+
+  // 目前生效的 project：選哨兵時取自訂輸入框的值，否則取 select 的值。
+  function selectedProject() {
+    var sel = document.getElementById('new-project-select');
+    if (sel.value === NEW_PROJECT_SENTINEL) {
+      return document.getElementById('new-project-custom').value.trim();
+    }
+    return sel.value;
   }
 
   // 該 project 下已存在的 subject 名（避免自動命名整檔覆寫掉既有對話）
@@ -725,10 +744,9 @@
 
   function openNewModal() {
     setModalMode('new');
-    document.getElementById('new-project').value = state.project || DEFAULT_PROJECT;
+    renderProjectSelect(state.project || DEFAULT_PROJECT);
     document.getElementById('new-subject').value = '';
     M.updateTextFields();
-    closeProjectPicker();
     M.Modal.getInstance(document.getElementById('new-modal')).open();
   }
 
@@ -743,15 +761,14 @@
     }
     renameTarget = { project: project, name: name };
     setModalMode('rename');
-    document.getElementById('new-project').value = project;
+    renderProjectSelect(project);
     document.getElementById('new-subject').value = name;
     M.updateTextFields();
-    closeProjectPicker();
     M.Modal.getInstance(document.getElementById('new-modal')).open();
   }
 
   function confirmModal() {
-    var project = document.getElementById('new-project').value.trim();
+    var project = selectedProject();
     var subject = document.getElementById('new-subject').value.trim();
     if (!L.isSafeName(project, L.PROJECT_NAME_MAX)) {
       M.toast({ html: I18n.t('toast.nameBad'), classes: 'orange' });
@@ -999,23 +1016,8 @@
       confirmModal();
     });
 
-    // Project 欄位下拉挑選：focus／點擊就開（顯示全部 project，不必等打字——這是原生 datalist
-    // 的痛點）；實際打字（input）才拿現值篩選。注意必須用包裹函式傳明確布林，不能直接把
-    // openProjectPicker 當 listener——那樣第一個參數會是 Event 物件（truthy），focus 時也會誤篩。
-    // blur 延遲關閉，讓下面 li 的 mousedown 有機會先跑完（mousedown 早於 blur，且 preventDefault
-    // 讓 input 不會提前失焦），否則點擊會因為 blur 先關閉面板而落空。
-    var projectInput = document.getElementById('new-project');
-    projectInput.addEventListener('focus', function () { openProjectPicker(false); });
-    projectInput.addEventListener('input', function () { openProjectPicker(true); });
-    projectInput.addEventListener('blur', function () {
-      setTimeout(closeProjectPicker, 150);
-    });
-    $(document).on('mousedown', '#project-picker li', function (e) {
-      e.preventDefault();
-      projectInput.value = $(this).attr('data-value');
-      M.updateTextFields();
-      closeProjectPicker();
-    });
+    // Project <select>：選到「＋ 新 project…」哨兵就展開自訂輸入框，否則收起（見 onProjectSelectChange）
+    document.getElementById('new-project-select').addEventListener('change', onProjectSelectChange);
 
     // 上一頁／下一頁：優先看 ?uid=，沒有才退回舊格式 ?project=&subject=（相容舊分頁/書籤）。
     // 注意：hash 變化（modal 內 href="#!" 的取消鍵等）也會觸發 popstate，

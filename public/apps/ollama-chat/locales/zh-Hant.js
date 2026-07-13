@@ -24,6 +24,8 @@ I18n.register('zh-Hant', {
   'tool.templates': 'Prompt 樣板庫',
   'modal.title': '新對話',
   'modal.project': 'Project（資料夾）',
+  'modal.newProjectOption': '＋ 新 project…',
+  'modal.newProjectName': '新 project 名稱',
   'modal.subject': 'Subject（主題）',
   'modal.subjectHintNew': '留空的話，送出第一則訊息後會由 Ollama 自動命名',
   'modal.create': '建立',
