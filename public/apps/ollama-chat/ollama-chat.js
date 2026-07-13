@@ -687,7 +687,7 @@
   function confirmModal() {
     var project = document.getElementById('new-project').value.trim();
     var subject = document.getElementById('new-subject').value.trim();
-    if (!L.isSafeName(project)) {
+    if (!L.isSafeName(project, L.PROJECT_NAME_MAX)) {
       M.toast({ html: I18n.t('toast.nameBad'), classes: 'orange' });
       return;
     }

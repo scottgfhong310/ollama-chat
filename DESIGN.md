@@ -1,6 +1,6 @@
 # ollama-chat — 設計決議（為什麼長這樣）
 
-> 版本 v1.2｜最後更新 2026-07-13
+> 版本 v1.3｜最後更新 2026-07-13
 
 「怎麼用」見 [README](./README.zh-Hant.md)；家族共同規範見
 [nodeapp-webapp-family](https://github.com/scottgfhong310/nodeapp-webapp-family)（此處只記本 app 特有的取捨）。
@@ -15,6 +15,11 @@
   ——避免「檔名 vs 內文標題」雙真相。代價：改名＝改檔名——由 `POST /rename`（`fs.rename`）承擔：
   目標已存在回 409 拒絕（upsert 語意只留給存檔端點）、404 驗證放在 `mkdir` 之前（免留空目標夾）、
   來源 project 夾清空後順手 `rmdir`。UI 與「新對話」共用同一個 modal（rename 模式預填現值）。
+- **名稱長度上限：project 255／subject 80，刻意不對稱**：兩者共用 `sanitizeName()`／`isSafeName()`，
+  但 project（資料夾名，通常代表一個長期主題分類，如「程式交易」）呼叫端傳 `PROJECT_NAME_MAX=255`，
+  subject（檔名，本來就會被 UI 截短顯示）維持原本 80。255 不是「無限制」——那會在 `fs.mkdir`／
+  `fs.rename` 炸出未處理的 `ENAMETOOLONG`——而是 macOS APFS/HFS+ 單一路徑片段的**實際**上限
+  （255 UTF-16 code unit，恰好等於 JS 字串 `.length`，選這個數字不用另外估算安全邊界）。
 - **`messages[]` 一筆＝一個 turn（v2，request-response 結構）**：
   `{ uid, serial, role:'user', content, ts, hidden?, response }`，
   `response = { uid, role:'assistant', content, ts, model? } | null`。

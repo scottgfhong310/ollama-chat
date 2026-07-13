@@ -38,7 +38,9 @@
  *                                                  （隱藏的 turn 排除在外，見 DESIGN.md §5.5）
  *   OllamaChatLib.promptIndex(messages)         → [{ uid, serial, ts, text, hidden }]  user 發言索引
  *   OllamaChatLib.autoName(text)                → string|null 由首個 prompt 推 subject 名（消毒後）
- *   OllamaChatLib.isSafeName(name)              → boolean     project/subject 名稱是否合法（鏡射後端）
+ *   OllamaChatLib.isSafeName(name, maxLen?)      → boolean     名稱是否合法（鏡射後端；maxLen 預設 80，
+ *                                                  project 呼叫端傳 PROJECT_NAME_MAX=255）
+ *   OllamaChatLib.PROJECT_NAME_MAX               → 255         project 名稱長度上限（macOS 路徑片段實際上限）
  *   OllamaChatLib.uniqueName(name, taken)       → string      與既有清單衝突時加 -2、-3…
  *   OllamaChatLib.listModels()                  → Promise<Array<{name,size,modifiedAt}>>
  *   OllamaChatLib.chatStream({model,messages,signal,onChunk}) → Promise<{content,stats,aborted}>
@@ -131,11 +133,14 @@
   /* ---------- 名稱（鏡射後端 sanitizeName 的規則） ---------- */
 
   var BAD_CHARS_RE = /[\/\\<>&"'`]|[\x00-\x1f\x7f]/;
+  // project（資料夾名）放寬到這個上限——非真無限，是 macOS 單一路徑片段的實際上限
+  // （255 UTF-16 code unit，恰好等於 JS 字串 .length）；鏡射後端 PROJECT_NAME_MAX。
+  var PROJECT_NAME_MAX = 255;
 
-  function isSafeName(name) {
+  function isSafeName(name, maxLen) {
     if (typeof name !== 'string') return false;
     var n = name.trim();
-    if (!n || n.length > 80) return false;
+    if (!n || n.length > (maxLen || 80)) return false;
     if (n === '.' || n === '..' || n[0] === '.') return false;
     return !BAD_CHARS_RE.test(n);
   }
@@ -392,6 +397,7 @@
     promptIndex: promptIndex,
     autoName: autoName,
     isSafeName: isSafeName,
+    PROJECT_NAME_MAX: PROJECT_NAME_MAX,
     uniqueName: uniqueName,
     listModels: listModels,
     chatStream: chatStream,

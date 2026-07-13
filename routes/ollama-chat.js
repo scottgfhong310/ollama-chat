@@ -34,7 +34,8 @@
  *
  * 安全限制：
  *   - 操作目標固定為 public/upload/ollama-chat/chats，不接受任意路徑參數
- *   - project / subject 名稱經 sanitizeName（擋 / \ 空字元、..、開頭 .、" ' < > & ` 與控制字元）
+ *   - project / subject 名稱經 sanitizeName（擋 / \ 空字元、..、開頭 .、" ' < > & ` 與控制字元）；
+ *     長度上限 project 255／subject 80（見 PROJECT_NAME_MAX 註解）
  *   - 絕對路徑落點檢查 startsWith(CHATS_DIR + sep)
  *   - 存檔只收白名單欄位（見 cleanChat／cleanTurn）
  */
@@ -73,10 +74,15 @@ function timestamp(d) {
 
 // project / subject 名稱消毒：名稱會成為資料夾名 / 檔名，也會被前端塞進 DOM，
 // 除家族基本款（/ \ \0、..、basename）外，比照 rare-glyph 另擋 " ' < > & ` 與控制字元。
-function sanitizeName(raw) {
+// maxLen 預設 80（subject／檔名沿用原上限）；project（資料夾名）呼叫端傳 PROJECT_NAME_MAX——
+// 不是真的「無限制」（那會在 fs.mkdir/fs.rename 炸出未處理的 ENAMETOOLONG），而是放寬到
+// macOS APFS/HFS+ 單一路徑片段的實際上限（255 UTF-16 code unit，恰好等於 JS 字串 .length）。
+const PROJECT_NAME_MAX = 255;
+
+function sanitizeName(raw, maxLen) {
   if (typeof raw !== 'string') return null;
   const name = raw.trim();
-  if (!name || name.length > 80) return null;
+  if (!name || name.length > (maxLen || 80)) return null;
   if (name === '.' || name === '..') return null;
   if (name[0] === '.') return null;                          // 擋隱藏檔（含 .bak）
   if (path.basename(name) !== name) return null;             // 擋 /（POSIX basename 不切 \，下行補擋）
@@ -176,7 +182,7 @@ function migrateFlatToTurns(messages) {
 
 // 解析 project / subject 參數 → 絕對檔案路徑；不合法回 null
 function subjectPath(project, name) {
-  const p = sanitizeName(project);
+  const p = sanitizeName(project, PROJECT_NAME_MAX);
   const n = sanitizeName(name);
   if (!p || !n) return null;
   const abs = path.join(CHATS_DIR, p, n + '.json');
