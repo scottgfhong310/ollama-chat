@@ -357,12 +357,15 @@ body.is-empty .empty-state {
   line-height: 1.8;
 }
 
-/* ---- 訊息 ---- */
+/* ---- 訊息：一個 .turn＝一組 request(+response)，跳轉/隱藏的操作單位 ---- */
+.turn {
+  scroll-margin-top: 16px;   /* prompt 跳轉時與 topbar 保持距離（目標已從單一 .msg 換成整個 turn） */
+}
+
 .msg {
   display: flex;
   flex-direction: column;
   margin: 14px 0;
-  scroll-margin-top: 16px;   /* prompt 跳轉時與 topbar 保持距離 */
 }
 
 .msg .meta {
@@ -398,8 +401,8 @@ body.is-empty .empty-state {
   word-break: break-word;
 }
 
-/* prompt 跳轉的短暫高亮 */
-.msg.flash .bubble {
+/* prompt 跳轉的短暫高亮：整個 turn（request＋response 都閃）跳轉目標已是 .turn */
+.turn.flash .msg .bubble {
   animation: oc-flash 1.4s ease;
 }
 

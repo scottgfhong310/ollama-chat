@@ -66,17 +66,38 @@ public/upload/ollama-chat/chats/    # 對話內容（不進版控）
 ## 資料結構
 
 ```jsonc
-// chats/<project>/<subject>.json — 一組對話
+// chats/<project>/<subject>.json — 一組對話。
+// messages[] 一筆＝一個 turn——request 與其（選填）response 配成一組，靠 uid 而非陣列位置連結。
+// serial 建立時指派一次、永不重編，即使日後前面的 turn 被隱藏，匯出／引用的編號仍然穩定。
 {
   "model": "qwen2.5:latest",        // 最後使用的模型
   "createdAt": "20260711000000",    // yyyyMMddHHmmss（server 正規化）
   "updatedAt": "20260711000102",    // 每次存檔由 server 蓋章
   "messages": [
-    { "role": "user",      "content": "…", "ts": "20260711000000" },
-    { "role": "assistant", "content": "…", "ts": "20260711000012", "model": "qwen2.5:latest" }
+    {
+      "uid": "b3f1...",              // 穩定 id——request↔response 的配對 key，也是 DOM 錨點
+      "serial": 1,                   // 1-based，建立時指派、永不重複使用或重編
+      "role": "user",
+      "content": "…",
+      "ts": "20260711000000",
+      "hidden": true,                // 選填，只有 true 才會出現——見下方「Prompt 隱藏」
+      "response": {                  // 等待回覆中，或中止且無內容時為 null
+        "uid": "9c2a...",
+        "role": "assistant",
+        "content": "…",
+        "ts": "20260711000012",
+        "model": "qwen2.5:latest"
+      }
+    }
   ]
 }
 ```
+
+### Prompt 隱藏
+
+任一 turn 都能從 prompt 清單面板隱藏——隱藏會**同時**把該 turn（request 與 response 一起）從
+對話主畫面收起；資料仍留在檔案裡，但**不會**被算進下一輪送給 Ollama 的上下文、也不會出現在
+匯出的 Markdown 裡，也就是「隱藏」＝當作這段交流沒發生過，不只是視覺上藏起來。
 
 ```jsonc
 // prompts.json — 全域 prompt 樣板庫
@@ -95,7 +116,7 @@ public/upload/ollama-chat/chats/    # 對話內容（不進版控）
     {
       "name": "inbox",
       "subjects": [
-        { "name": "…", "updatedAt": "20260711000102", "model": "qwen2.5:latest", "messageCount": 4 }
+        { "name": "…", "updatedAt": "20260711000102", "model": "qwen2.5:latest", "turnCount": 4 }
       ]
     }
   ]
@@ -108,13 +129,15 @@ public/upload/ollama-chat/chats/    # 對話內容（不進版控）
 
 ```js
 const chat = OllamaChatLib.newChat('qwen2.5:latest');
-chat.messages.push(OllamaChatLib.userMessage('你好'));
+const turn = OllamaChatLib.newTurn('你好', chat.messages.length + 1);
+chat.messages.push(turn);
 await OllamaChatLib.chatStream({
   model: chat.model,
-  messages: chat.messages,
+  messages: OllamaChatLib.flattenForApi(chat.messages),   // turns → 扁平 [{role,content}] 給 Ollama
   onChunk: (delta, full) => render(full)
 });                                       // → { content, stats, aborted }
-OllamaChatLib.promptIndex(chat.messages); // → [{ index, ts, text }]
+turn.response = OllamaChatLib.newResponse('你好！', chat.model);
+OllamaChatLib.promptIndex(chat.messages); // → [{ uid, serial, ts, text, hidden }]
 await OllamaChatLib.saveSubject('inbox', 'hello', chat);
 ```
 

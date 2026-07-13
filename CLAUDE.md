@@ -1,10 +1,11 @@
 # ollama-chat — Session context
 
-> 版本 v1.0｜最後更新 2026-07-11
+> 版本 v1.1｜最後更新 2026-07-12
 
 本地 **Ollama** 模型的全版面 Web 聊天介面：**project（資料夾）→ subject（一組對話＝一個 JSON 檔）
-→ prompt 索引**。串流回覆（NDJSON 直通）、markdown 渲染（marked + DOMPurify）、
-自動命名（首句 → subject、落 `inbox`）、匯出 Markdown、深連結 `?project=&subject=`。
+→ turn（request-response 配對，`uid`/`serial`）**。串流回覆（NDJSON 直通）、markdown 渲染（marked + DOMPurify）、
+自動命名（首句 → subject、落 `inbox`）、prompt 可隱藏（索引＋對話區＋context＋匯出同步排除）、
+匯出 Markdown、深連結 `?project=&subject=`。
 輕量 Express 後端（Ollama proxy＋對話存取），無資料庫、無 registry——純檔案掃描。
 
 本 app 屬於 **nodeapp WebApp 家族**；共同規範與流程在
@@ -39,11 +40,18 @@ npm install && node app.js          # → http://localhost:3000/apps/ollama-chat
 
 ## 本 app 的 canon 重點
 
+- **資料模型 v2：turn（request-response，非扁平交替陣列）**——`messages[]` 一筆＝一個 turn
+  `{ uid, serial, role:'user', content, ts, hidden?, response }`，`response` 巢狀掛 assistant
+  回覆或 `null`。`uid` 是 request↔response 配對 key 也是 DOM 錨點（`#msg-<uid>`）；`serial`
+  建立時指派一次、永不重編（匯出引用要的穩定編號）。v1 舊格式（扁平陣列）只在 `GET /subject`
+  讀取時偵測並即時轉換，不主動改寫檔案，下次存檔自然落地成 v2。詳見 DESIGN.md §1／§1.1。
 - **可嵌入 lib** `ollama-chat-lib.js`（`window.OllamaChatLib`，純邏輯、不碰 DOM）：
   `chatStream()`（fetch ReadableStream 逐行解析 NDJSON、AbortController 中止）、
-  `promptIndex()`（user 發言 → 索引）、`autoName`/`isSafeName`/`uniqueName`（鏡射後端消毒）、
-  `newChat`/`userMessage`/`assistantMessage`、`exportMarkdown`、tree/subject CRUD、
-  `timestamp`/`stampFilename`/`formatTs`/`formatSize`/`downloadText`。
+  `newTurn`/`newResponse`（建構子，`genUid` 用 `crypto.randomUUID`）、
+  `flattenForApi()`（turns → 扁平 `[{role,content}]`，供 Ollama context；**排除 hidden 的 turn**）、
+  `promptIndex()`（user turn → 索引，含 `uid`/`serial`/`hidden`）、
+  `autoName`/`isSafeName`/`uniqueName`（鏡射後端消毒）、`exportMarkdown`（用 `serial` 編號、
+  跳過 hidden）、tree/subject CRUD、`timestamp`/`stampFilename`/`formatTs`/`formatSize`/`downloadText`。
 - **輸入列走 Materialize `.input-field` ＋浮動 label**（§5.7）：深色由 materialize-dark.css 處理，
   app CSS 只調間距／寬度。**Materialize 1.0 的 label 自動浮起在動態情境不可靠**——控制器自掛
   focus／input／blur 三個 listener 同步 `.active`（語意與其原生一致）。訊息氣泡則是本 app 自訂設計
@@ -52,6 +60,11 @@ npm install && node app.js          # → http://localhost:3000/apps/ollama-chat
   連結一律 `target=_blank rel=noopener`；串流中 120ms 節流全文重繪；完成後補 §4.5 式複製鈕
   （light DOM，可用 Material Icons，不必 inline SVG）。
 - **`{ ok }` 信封的唯一例外**：`POST /chat` 成功時是 NDJSON 串流直通（失敗仍回 `{ ok:false }`）。
+- **prompt 隱藏＝當作沒發生過**：`#prompt-list` 每列 hover 出 `visibility_off`，標記該 turn
+  `hidden:true`。三處同步（同一個 `setPromptHidden()` → `renderMessages()`）：對話主畫面跳過該
+  turn、送給模型的 context（`flattenForApi`）排除、匯出 Markdown 排除——不是只在索引打勾，見
+  DESIGN.md §5.5。清單頂端「顯示已隱藏的 N 筆」可展開查看（淡化＋刪節線）並還原，還原不觸發
+  `.bak`（訊息本體從未被修改，純加/減一個旗標）。
 - **.bak 策略**：訊息追加型整檔覆寫**不留** .bak（每輪都寫，會爆量）；**刪除**才移到 `chats/.bak/` 備份。
 - **名稱即路徑**：project/subject 名稱＝資料夾/檔名（單一真相），後端 `sanitizeName`
   擋 `/ \ ..`、開頭 `.`、`" ' < > & \`` 與控制字元；前端 `isSafeName` 鏡射同規則。

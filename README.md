@@ -67,17 +67,40 @@ which passes Ollama's NDJSON chunks through verbatim.
 ## Data structures
 
 ```jsonc
-// chats/<project>/<subject>.json — one conversation
+// chats/<project>/<subject>.json — one conversation.
+// messages[] holds one entry per turn — a request paired with its (optional) response,
+// linked by uid rather than by array position. serial is assigned once, at creation, and
+// never renumbered, so exports/citations stay stable even if earlier turns are later hidden.
 {
   "model": "qwen2.5:latest",        // last used model
   "createdAt": "20260711000000",    // yyyyMMddHHmmss (server-normalised)
   "updatedAt": "20260711000102",    // stamped by the server on every save
   "messages": [
-    { "role": "user",      "content": "…", "ts": "20260711000000" },
-    { "role": "assistant", "content": "…", "ts": "20260711000012", "model": "qwen2.5:latest" }
+    {
+      "uid": "b3f1...",              // stable id — the request↔response pairing key, and the DOM anchor
+      "serial": 1,                   // 1-based, assigned once, never reused/renumbered
+      "role": "user",
+      "content": "…",
+      "ts": "20260711000000",
+      "hidden": true,                // optional; only present when true — see "Prompt visibility" below
+      "response": {                  // null while awaiting a reply, or if generation was aborted with no output
+        "uid": "9c2a...",
+        "role": "assistant",
+        "content": "…",
+        "ts": "20260711000012",
+        "model": "qwen2.5:latest"
+      }
+    }
   ]
 }
 ```
+
+### Prompt visibility
+
+Any turn can be hidden from the prompt-list panel — hiding also collapses that turn (both the
+request and its reply) out of the main chat view; it still exists in the file and is excluded
+from the context sent to Ollama on the next turn and from Markdown export, i.e. "hidden" means
+the exchange is treated as if it never happened, not just visually tucked away.
 
 ```jsonc
 // prompts.json — global prompt template library
@@ -96,7 +119,7 @@ which passes Ollama's NDJSON chunks through verbatim.
     {
       "name": "inbox",
       "subjects": [
-        { "name": "…", "updatedAt": "20260711000102", "model": "qwen2.5:latest", "messageCount": 4 }
+        { "name": "…", "updatedAt": "20260711000102", "model": "qwen2.5:latest", "turnCount": 4 }
       ]
     }
   ]
@@ -109,13 +132,15 @@ Pure logic, no DOM (`window.OllamaChatLib`, zero dependencies):
 
 ```js
 const chat = OllamaChatLib.newChat('qwen2.5:latest');
-chat.messages.push(OllamaChatLib.userMessage('Hello'));
+const turn = OllamaChatLib.newTurn('Hello', chat.messages.length + 1);
+chat.messages.push(turn);
 await OllamaChatLib.chatStream({
   model: chat.model,
-  messages: chat.messages,
+  messages: OllamaChatLib.flattenForApi(chat.messages),   // turns → flat [{role,content}] for Ollama
   onChunk: (delta, full) => render(full)
 });                                       // → { content, stats, aborted }
-OllamaChatLib.promptIndex(chat.messages); // → [{ index, ts, text }]
+turn.response = OllamaChatLib.newResponse('Hi there!', chat.model);
+OllamaChatLib.promptIndex(chat.messages); // → [{ uid, serial, ts, text, hidden }]
 await OllamaChatLib.saveSubject('inbox', 'hello', chat);
 ```
 

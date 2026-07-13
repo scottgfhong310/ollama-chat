@@ -5,26 +5,38 @@
  * 「與伺服器溝通」「名稱/時間戳工具」等可重用邏輯抽成一支 library；
  * index.html / ollama-chat.js 只負責 DOM（訊息渲染、事件繫結、toast、markdown→HTML）。
  *
- * 資料模型（與後端 routes/ollama-chat.js 對齊）：
- *   project（資料夾）→ subject（一個 JSON 檔 = 一組對話）→ messages[]
- *   chat = { model, createdAt, updatedAt, messages: [{ role, content, ts, model? }] }
+ * 資料模型（與後端 routes/ollama-chat.js 對齊；v2 request-response 結構）：
+ *   project（資料夾）→ subject（一個 JSON 檔 = 一組對話）→ messages[]（一筆＝一個 turn）
+ *   chat = { model, createdAt, updatedAt, messages: [turn] }
+ *   turn = {
+ *     uid,                 // 穩定 id：request↔response 的配對 key，也是 DOM 錨點（#msg-<uid>）
+ *     serial,               // 建立時的序號（1-based）；一經指派永不重編，匯出/引用用它才穩定
+ *     role: 'user',         // 頂層＝發起方（未來可擴充 'system'）；assistant 一律巢狀在 response
+ *     content, ts,
+ *     hidden,               // 選填，僅 true 才存——從 prompt 索引「與對話區」同時隱藏（見 §5.5 hide 語意）
+ *     response: { uid, role:'assistant', content, ts, model? } | null   // 尚未產生／中止且無內容 → null
+ *   }
  *   儲存位置： public/upload/ollama-chat/chats/<project>/<subject>.json
+ *   （v1 舊格式＝扁平陣列 role 交替；後端 GET /subject 讀取時自動遷移，見 DESIGN.md §1.1）
  *
  * 後端對應：
  *   - 模型清單： GET  /api/ollama-chat/models          （proxy Ollama /api/tags）
- *   - 對話串流： POST /api/ollama-chat/chat            （proxy Ollama /api/chat，NDJSON 直通）
+ *   - 對話串流： POST /api/ollama-chat/chat            （proxy Ollama /api/chat，NDJSON 直通；
+ *                                                        body.messages 是 flattenForApi() 攤平後的扁平陣列）
  *   - 樹：       GET  /api/ollama-chat/tree
  *   - 讀/存/刪： GET|POST /api/ollama-chat/subject、POST /api/ollama-chat/delete
  *
- * 依賴：無（原生 fetch / ReadableStream / TextDecoder）。
+ * 依賴：無（原生 fetch / ReadableStream / TextDecoder / crypto.randomUUID，皆瀏覽器內建）。
  * 與 jQuery / Materialize / Lodash / marked / DOMPurify 並存但不依賴它們。
  *
  * Public API：
  *   OllamaChatLib.FOLDER                        → 'ollama-chat'
  *   OllamaChatLib.newChat(model)                → chat        空對話物件
- *   OllamaChatLib.userMessage(text)             → message     （帶 ts）
- *   OllamaChatLib.assistantMessage(text, model) → message     （帶 ts）
- *   OllamaChatLib.promptIndex(messages)         → [{ index, ts, text }]  user 發言索引（text 截首行）
+ *   OllamaChatLib.newTurn(content, serial)      → turn        新 request（uid 自動產生、response:null）
+ *   OllamaChatLib.newResponse(content, model)   → response    新 reply（掛到 turn.response）
+ *   OllamaChatLib.flattenForApi(messages)       → [{role,content}]  turns→扁平陣列，供 Ollama context
+ *                                                  （隱藏的 turn 排除在外，見 DESIGN.md §5.5）
+ *   OllamaChatLib.promptIndex(messages)         → [{ uid, serial, ts, text, hidden }]  user 發言索引
  *   OllamaChatLib.autoName(text)                → string|null 由首個 prompt 推 subject 名（消毒後）
  *   OllamaChatLib.isSafeName(name)              → boolean     project/subject 名稱是否合法（鏡射後端）
  *   OllamaChatLib.uniqueName(name, taken)       → string      與既有清單衝突時加 -2、-3…
@@ -147,32 +159,54 @@
     return name + '-' + timestamp();
   }
 
-  /* ---------- 對話物件 ---------- */
+  /* ---------- 對話物件（v2：turn = request + 巢狀 response） ---------- */
+
+  // 穩定 id：request↔response 配對 key、DOM 錨點。localhost 視為安全內容脈絡，
+  // crypto.randomUUID 可用；缺席時退回時間戳＋亂數尾碼（僅防同 tick 碰撞，非密碼學用途）。
+  function genUid() {
+    try { if (window.crypto && crypto.randomUUID) return crypto.randomUUID(); } catch (e) {}
+    return timestamp() + '-' + Math.random().toString(36).slice(2, 8);
+  }
 
   function newChat(model) {
     var ts = timestamp();
     return { model: model || '', createdAt: ts, updatedAt: ts, messages: [] };
   }
 
-  function userMessage(text) {
-    return { role: 'user', content: String(text || ''), ts: timestamp() };
+  // 新 request turn。serial 由呼叫端傳入（慣例：messages.length + 1），
+  // 一經指派永不重編——即使日後該 turn 被隱藏／刪除，匯出等引用仍指向同一個號碼。
+  function newTurn(content, serial) {
+    return { uid: genUid(), serial: serial, role: 'user', content: String(content || ''), ts: timestamp(), response: null };
   }
 
-  function assistantMessage(text, model) {
-    var m = { role: 'assistant', content: String(text || ''), ts: timestamp() };
-    if (model) m.model = model;
-    return m;
+  function newResponse(content, model) {
+    var r = { uid: genUid(), role: 'assistant', content: String(content || ''), ts: timestamp() };
+    if (model) r.model = model;
+    return r;
   }
 
-  // prompt 索引：該對話所有 user 發言（index 為 messages 內的原始位置，供跳轉）。
-  // hidden＝該 prompt 被標記從索引隱藏（訊息仍在對話中）；由 UI 決定顯示與否。
+  // turns → Ollama /api/chat 要的扁平 [{role,content}]。
+  // 隱藏的 turn 整組（request＋response）排除在外：hidden 語意是「當作沒發生過」，
+  // 不只是 UI 不顯示，也不該再餵給模型當上下文（DESIGN.md §5.5）。
+  function flattenForApi(messages) {
+    var out = [];
+    (messages || []).forEach(function (t) {
+      if (!t || t.hidden) return;
+      out.push({ role: t.role, content: t.content });
+      if (t.response) out.push({ role: 'assistant', content: t.response.content });
+    });
+    return out;
+  }
+
+  // prompt 索引：該對話所有 request turn（uid 供跳轉／隱藏操作的穩定 key，非陣列位置）。
+  // hidden＝該 turn 被標記從索引「與對話區」同時隱藏；由 UI 決定顯示與否。
   function promptIndex(messages) {
     var out = [];
-    (messages || []).forEach(function (m, i) {
-      if (!m || m.role !== 'user') return;
-      var text = String(m.content || '').split('\n')[0].trim();
+    (messages || []).forEach(function (t) {
+      if (!t || t.role !== 'user') return;
+      var text = String(t.content || '').split('\n')[0].trim();
       if (text.length > 120) text = text.slice(0, 120) + '…';
-      out.push({ index: i, ts: m.ts || '', text: text, hidden: m.hidden === true });
+      out.push({ uid: t.uid, serial: t.serial, ts: t.ts || '', text: text, hidden: t.hidden === true });
     });
     return out;
   }
@@ -302,7 +336,9 @@
 
   /* ---------- 匯出 ---------- */
 
-  // 匯出成 Markdown（資料內容原樣、不翻譯；標頭用中性英文欄位名）
+  // 匯出成 Markdown（資料內容原樣、不翻譯；標頭用中性英文欄位名）。
+  // 編號用 turn.serial（穩定，不因隱藏/跳過而重排）；隱藏的 turn 整組不匯出
+  // ——與 flattenForApi 同一語意：hidden＝當作沒發生過（見 DESIGN.md §5.5）。
   function exportMarkdown(project, name, chat) {
     var lines = [
       '# ' + name,
@@ -311,14 +347,13 @@
         ' ｜ Exported: ' + formatTs(timestamp()),
       ''
     ];
-    var qn = 0;
-    (chat.messages || []).forEach(function (m) {
-      if (m.role === 'user') {
-        qn++;
-        lines.push('---', '', '### 🙋 Prompt ' + qn +
-          (m.ts ? '（' + formatTs(m.ts) + '）' : ''), '', m.content, '');
-      } else if (m.role === 'assistant') {
-        lines.push('### 🤖 Reply ' + qn + (m.model ? '（' + m.model + '）' : ''), '', m.content, '');
+    (chat.messages || []).forEach(function (t) {
+      if (!t || t.hidden) return;
+      lines.push('---', '', '### 🙋 Prompt ' + t.serial +
+        (t.ts ? '（' + formatTs(t.ts) + '）' : ''), '', t.content, '');
+      if (t.response) {
+        lines.push('### 🤖 Reply ' + t.serial +
+          (t.response.model ? '（' + t.response.model + '）' : ''), '', t.response.content, '');
       }
     });
     return lines.join('\n');
@@ -340,8 +375,9 @@
   window.OllamaChatLib = {
     FOLDER: FOLDER,
     newChat: newChat,
-    userMessage: userMessage,
-    assistantMessage: assistantMessage,
+    newTurn: newTurn,
+    newResponse: newResponse,
+    flattenForApi: flattenForApi,
     promptIndex: promptIndex,
     autoName: autoName,
     isSafeName: isSafeName,

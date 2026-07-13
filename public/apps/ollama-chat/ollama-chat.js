@@ -40,7 +40,7 @@
     tree: [],
     project: null,   // 目前開啟的 project（資料夾名）
     subject: null,   // 目前開啟的 subject（檔名去 .json）
-    chat: null,      // { model, createdAt, updatedAt, messages }
+    chat: null,      // { model, createdAt, updatedAt, messages: [turn] }（turn 結構見 lib 檔頭）
     streaming: false,
     abortCtl: null,
     collapsed: {}    // project name → true（樹狀收合狀態，僅記憶體）
@@ -118,34 +118,57 @@
     });
   }
 
-  /* ---------- 訊息渲染 ---------- */
+  /* ---------- 訊息渲染（一個 turn＝一個 request 泡泡＋選填的 response 泡泡） ---------- */
 
-  function buildMsgEl(m, index) {
+  function buildBubble(role, content) {
     var wrap = document.createElement('div');
-    wrap.className = 'msg ' + m.role;
-    wrap.id = 'msg-' + index;
+    wrap.className = 'msg ' + role;
     var bubble = document.createElement('div');
-    if (m.role === 'assistant') {
+    if (role === 'assistant') {
       bubble.className = 'bubble md';
-      bubble.innerHTML = renderMarkdown(m.content);
+      bubble.innerHTML = renderMarkdown(content);
       addCopyButtons(bubble);
     } else {
       bubble.className = 'bubble';
-      bubble.textContent = m.content;
+      bubble.textContent = content;
     }
     wrap.appendChild(bubble);
-    var meta = document.createElement('div');
-    meta.className = 'meta';
-    meta.textContent = (m.role === 'assistant' && m.model ? m.model + ' · ' : '') + L.formatTs(m.ts);
-    wrap.appendChild(meta);
+    return wrap;
+  }
+
+  function buildTurnEl(turn) {
+    var wrap = document.createElement('div');
+    wrap.className = 'turn';
+    wrap.id = 'msg-' + turn.uid;
+
+    var userWrap = buildBubble('user', turn.content);
+    var userMeta = document.createElement('div');
+    userMeta.className = 'meta';
+    userMeta.textContent = L.formatTs(turn.ts);
+    userWrap.appendChild(userMeta);
+    wrap.appendChild(userWrap);
+
+    if (turn.response) {
+      var aWrap = buildBubble('assistant', turn.response.content);
+      var aMeta = document.createElement('div');
+      aMeta.className = 'meta';
+      aMeta.textContent = (turn.response.model ? turn.response.model + ' · ' : '') + L.formatTs(turn.response.ts);
+      aWrap.appendChild(aMeta);
+      wrap.appendChild(aWrap);
+    }
     return wrap;
   }
 
   function renderMessages() {
     chatList.innerHTML = '';
-    var msgs = (state.chat && state.chat.messages) || [];
-    msgs.forEach(function (m, i) { chatList.appendChild(buildMsgEl(m, i)); });
-    document.body.classList.toggle('is-empty', !msgs.length);
+    var turns = (state.chat && state.chat.messages) || [];
+    var shown = 0;
+    turns.forEach(function (t) {
+      if (t.hidden) return;   // 隱藏＝索引與對話區同時隱藏（家族/DESIGN §5.5）
+      chatList.appendChild(buildTurnEl(t));
+      shown++;
+    });
+    document.body.classList.toggle('is-empty', !shown);
     renderPromptList();
   }
 
@@ -203,7 +226,7 @@
           (active ? ' class="active"' : '') + '>' +
           '<i class="material-icons">chat_bubble_outline</i>' +
           '<span class="subj-name">' + _.escape(s.name) + '</span>' +
-          '<span class="subj-meta">' + (s.messageCount || 0) + '</span>' +
+          '<span class="subj-meta">' + (s.turnCount || 0) + '</span>' +
           // more_vert 展開該列的 改名／刪除（動作對象＝這一列，不必先開啟該 subject）
           '<span class="subj-actions">' +
           '<i class="material-icons subj-act subj-act-edit" title="' + _.escape(I18n.t('tool.rename')) + '">edit</i>' +
@@ -343,27 +366,28 @@
     M.textareaAutoResize(inputEl);
     updateClearBtn();
     state.chat.model = state.model;
-    state.chat.messages.push(L.userMessage(text));
+    var turn = L.newTurn(text, state.chat.messages.length + 1);
+    state.chat.messages.push(turn);
     renderMessages();
     updateChrome();
     scrollBottom();
     persist();
-    startStream();
+    startStream(turn);
   }
 
-  function startStream() {
+  function startStream(turn) {
     state.streaming = true;
     setSendBtn(true);
 
-    // 佔位訊息：先掛「思考中」脈動點，第一個 token 到就換成串流內容
+    // 佔位訊息掛在該 turn 容器內：先「思考中」脈動點，第一個 token 到就換成串流內容
+    var container = document.getElementById('msg-' + turn.uid);
     var pendingWrap = document.createElement('div');
     pendingWrap.className = 'msg assistant streaming';
     var pendingBubble = document.createElement('div');
     pendingBubble.className = 'bubble md';
     pendingBubble.innerHTML = '<span class="thinking-dot"></span>';
     pendingWrap.appendChild(pendingBubble);
-    chatList.appendChild(pendingWrap);
-    document.body.classList.remove('is-empty');
+    container.appendChild(pendingWrap);
     scrollBottom();
 
     var ctl = new AbortController();
@@ -378,7 +402,7 @@
 
     L.chatStream({
       model: state.model,
-      messages: state.chat.messages.map(function (m) { return { role: m.role, content: m.content }; }),
+      messages: L.flattenForApi(state.chat.messages),
       signal: ctl.signal,
       onChunk: function (delta, full) {
         var now = Date.now();
@@ -394,7 +418,7 @@
       pendingWrap.remove();
       if (r.content) {
         var model = (r.stats && r.stats.model) || state.model;
-        state.chat.messages.push(L.assistantMessage(r.content, model));
+        turn.response = L.newResponse(r.content, model);
         renderMessages();
         scrollBottom();
         persist();
@@ -448,10 +472,10 @@
   function promptRow(it, n, hidden) {
     var icon = hidden ? 'visibility' : 'visibility_off';
     var title = _.escape(I18n.t(hidden ? 'prompt.unhide' : 'prompt.hide'));
-    return '<li><a href="#!" class="prompt-item' + (hidden ? ' is-hidden' : '') + '" data-index="' + it.index + '">' +
+    return '<li><a href="#!" class="prompt-item' + (hidden ? ' is-hidden' : '') + '" data-uid="' + _.escape(it.uid) + '">' +
       '<span class="prompt-no">' + (n === null ? '' : (n + 1) + '.') + '</span>' +
       '<span class="prompt-text">' + _.escape(it.text) + '</span>' +
-      '<i class="material-icons prompt-hide" data-index="' + it.index + '" title="' + title + '">' + icon + '</i>' +
+      '<i class="material-icons prompt-hide" data-uid="' + _.escape(it.uid) + '" title="' + title + '">' + icon + '</i>' +
       '</a></li>';
   }
 
@@ -486,17 +510,20 @@
     promptList.innerHTML = html;
   }
 
-  // 設定某 prompt 的隱藏狀態（存進訊息旗標、持久化、重繪索引）
-  function setPromptHidden(index, hide) {
-    var m = state.chat && state.chat.messages && state.chat.messages[index];
-    if (!m || m.role !== 'user') return;
-    if (hide) m.hidden = true; else delete m.hidden;
-    renderPromptList();
+  // 設定某 turn 的隱藏狀態（uid 定位、持久化）。renderMessages() 同時重繪對話區與
+  // prompt 索引——一次呼叫達成「hide 時對話區內容同步隱藏」（家族/DESIGN §5.5）。
+  function setPromptHidden(uid, hide) {
+    var turns = (state.chat && state.chat.messages) || [];
+    var turn = null;
+    for (var i = 0; i < turns.length; i++) { if (turns[i].uid === uid) { turn = turns[i]; break; } }
+    if (!turn) return;
+    if (hide) turn.hidden = true; else delete turn.hidden;
+    renderMessages();
     persist();
   }
 
-  function jumpToMessage(index) {
-    var el = document.getElementById('msg-' + index);
+  function jumpToMessage(uid) {
+    var el = document.getElementById('msg-' + uid);
     if (!el) return;
     el.scrollIntoView({ behavior: 'smooth', block: 'start' });
     el.classList.remove('flash');
@@ -782,7 +809,7 @@
       e.preventDefault();
       e.stopPropagation();
       var li = $(this).closest('a.prompt-item');
-      setPromptHidden(Number($(this).data('index')), !li.hasClass('is-hidden'));
+      setPromptHidden(String($(this).data('uid')), !li.hasClass('is-hidden'));
     });
     // 展開/收合已隱藏
     $(document).on('click', '#prompt-list #prompt-toggle-hidden', function (e) {
@@ -793,10 +820,10 @@
     // prompt 清單：點列跳到對話中該處
     $(document).on('click', '#prompt-list a.prompt-item', function (e) {
       e.preventDefault();
-      var idx = Number($(this).data('index'));
+      var uid = String($(this).data('uid'));
       var inst = M.Sidenav.getInstance(document.getElementById('prompt-nav'));
       if (inst && inst.isOpen) inst.close();
-      jumpToMessage(idx);
+      jumpToMessage(uid);
     });
 
     // 浮動 label 同步（Materialize 語意：focus／有內容→浮起，blur 且空→回位。

@@ -67,17 +67,40 @@ public/upload/ollama-chat/chats/    # 会話データ（コミットしない）
 ## データ構造
 
 ```jsonc
-// chats/<project>/<subject>.json — 1 会話
+// chats/<project>/<subject>.json — 1 会話。
+// messages[] は 1 件＝1 turn（リクエストとその応答のペア）——配列位置ではなく uid で連結。
+// serial は作成時に一度だけ割り当てられ、以後リナンバーされない。前の turn を隠しても
+// エクスポートや参照の番号は安定して保たれる。
 {
   "model": "qwen2.5:latest",        // 最後に使用したモデル
   "createdAt": "20260711000000",    // yyyyMMddHHmmss（サーバーで正規化）
   "updatedAt": "20260711000102",    // 保存のたびにサーバーが刻印
   "messages": [
-    { "role": "user",      "content": "…", "ts": "20260711000000" },
-    { "role": "assistant", "content": "…", "ts": "20260711000012", "model": "qwen2.5:latest" }
+    {
+      "uid": "b3f1...",              // 安定 id——request↔response のペアキー、DOM のアンカーにも使用
+      "serial": 1,                   // 1 始まり、作成時に一度だけ割り当て・再利用/再採番なし
+      "role": "user",
+      "content": "…",
+      "ts": "20260711000000",
+      "hidden": true,                // 任意項目、true のときのみ存在——下記「プロンプトの非表示」参照
+      "response": {                  // 応答待ち、または中断で内容が空のときは null
+        "uid": "9c2a...",
+        "role": "assistant",
+        "content": "…",
+        "ts": "20260711000012",
+        "model": "qwen2.5:latest"
+      }
+    }
   ]
 }
 ```
+
+### プロンプトの非表示
+
+どの turn もプロンプト一覧パネルから非表示にできる——非表示にすると、その turn（リクエストと
+応答の両方）はメイン会話画面からも同時に消える。データ自体はファイルに残るが、**次回以降
+Ollama に送るコンテキストにも Markdown エクスポートにも含まれない**——つまり「非表示」は
+見た目を隠すだけでなく、そのやり取りがなかったことにする、という意味になる。
 
 ```jsonc
 // prompts.json — グローバルなプロンプトテンプレート集
@@ -96,7 +119,7 @@ public/upload/ollama-chat/chats/    # 会話データ（コミットしない）
     {
       "name": "inbox",
       "subjects": [
-        { "name": "…", "updatedAt": "20260711000102", "model": "qwen2.5:latest", "messageCount": 4 }
+        { "name": "…", "updatedAt": "20260711000102", "model": "qwen2.5:latest", "turnCount": 4 }
       ]
     }
   ]
@@ -109,13 +132,15 @@ public/upload/ollama-chat/chats/    # 会話データ（コミットしない）
 
 ```js
 const chat = OllamaChatLib.newChat('qwen2.5:latest');
-chat.messages.push(OllamaChatLib.userMessage('こんにちは'));
+const turn = OllamaChatLib.newTurn('こんにちは', chat.messages.length + 1);
+chat.messages.push(turn);
 await OllamaChatLib.chatStream({
   model: chat.model,
-  messages: chat.messages,
+  messages: OllamaChatLib.flattenForApi(chat.messages),   // turns → フラットな [{role,content}]（Ollama 用）
   onChunk: (delta, full) => render(full)
 });                                       // → { content, stats, aborted }
-OllamaChatLib.promptIndex(chat.messages); // → [{ index, ts, text }]
+turn.response = OllamaChatLib.newResponse('こんにちは！', chat.model);
+OllamaChatLib.promptIndex(chat.messages); // → [{ uid, serial, ts, text, hidden }]
 await OllamaChatLib.saveSubject('inbox', 'hello', chat);
 ```
 

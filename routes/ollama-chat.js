@@ -12,6 +12,7 @@
  * 對話存取（project=資料夾、subject=JSON 檔；純檔案掃描，無 registry）：
  *   GET  /api/ollama-chat/tree      → 掃 chats/ 建 project→subject 樹（讀各檔 meta）
  *   GET  /api/ollama-chat/subject   → ?project=&name= 讀一個 subject JSON
+ *                                     （讀到 v1 舊格式扁平陣列會自動遷移成 v2 turn 結構再回傳，見 migrateFlatToTurns）
  *   POST /api/ollama-chat/subject   → { project, name, chat } 整檔覆寫存檔
  *                                     （訊息追加型覆寫，不留 .bak——設計決議見 DESIGN.md）
  *   POST /api/ollama-chat/rename    → { project, name, newProject, newName } 改名／搬 project
@@ -22,16 +23,23 @@
  *   GET  /api/ollama-chat/prompts   → { ok, prompts: [{ content, ts, title? }] }
  *   POST /api/ollama-chat/prompts   → { prompts: [...] } 整清單覆寫（覆寫前 .bak）
  *
+ * 資料模型（v2，request-response 結構；見 lib 檔頭與 DESIGN.md §1）：
+ *   chat.messages[] 一筆＝一個 turn = { uid, serial, role:'user', content, ts, hidden?, response }
+ *   response = { uid, role:'assistant', content, ts, model? } | null
+ *   v1 舊格式（扁平陣列、role 交替）只在 GET /subject 讀取時偵測並即時遷移，不主動改寫既有檔案
+ *   （下次 POST /subject 存檔時才落地成 v2；自然汰換，見 migrateFlatToTurns）。
+ *
  * 安全限制：
  *   - 操作目標固定為 public/upload/ollama-chat/chats，不接受任意路徑參數
  *   - project / subject 名稱經 sanitizeName（擋 / \ 空字元、..、開頭 .、" ' < > & ` 與控制字元）
  *   - 絕對路徑落點檢查 startsWith(CHATS_DIR + sep)
- *   - 存檔只收白名單欄位（model / createdAt / updatedAt / messages[{role,content,ts,model}]）
+ *   - 存檔只收白名單欄位（見 cleanChat／cleanTurn）
  */
 
 const express = require('express');
 const path = require('path');
 const fs = require('fs').promises;
+const crypto = require('crypto');
 const { Readable } = require('stream');
 
 const router = express.Router();
@@ -82,27 +90,85 @@ function isVisible(name) {
   return typeof name === 'string' && name.length > 0 && name[0] !== '.';
 }
 
-// 存檔白名單：只持久化已知欄位，防前端（或手改）夾帶垃圾鍵
+// 扁平信封（POST /chat 傳給 Ollama 的 context）用的角色白名單——與持久化的 turn 結構無關，
+// 那是 lib flattenForApi() 攤平後的形狀，assistant 在這裡合法。
 const ROLE_WHITELIST = ['user', 'assistant', 'system'];
+
+// 持久化 turn 結構的角色白名單：頂層＝發起方（目前只有 user；system 留待未來擴充），
+// assistant 只存在於巢狀的 response 內，不會出現在這裡。
+const TURN_ROLE_WHITELIST = ['user', 'system'];
+
+// 存檔白名單：只持久化已知欄位，防前端（或手改）夾帶垃圾鍵
+function cleanResponse(r) {
+  if (r === null || r === undefined) return null;
+  if (typeof r !== 'object') return undefined;   // undefined＝不合法，讓呼叫端判斷
+  if (typeof r.uid !== 'string' || !r.uid) return undefined;
+  if (r.role !== 'assistant') return undefined;
+  if (typeof r.content !== 'string') return undefined;
+  const clean = { uid: r.uid, role: 'assistant', content: r.content };
+  if (typeof r.ts === 'string') clean.ts = r.ts;
+  if (typeof r.model === 'string') clean.model = r.model;
+  return clean;
+}
+
+function cleanTurn(t) {
+  if (!t || typeof t !== 'object') return null;
+  if (typeof t.uid !== 'string' || !t.uid) return null;
+  if (!Number.isInteger(t.serial) || t.serial < 1) return null;
+  if (!TURN_ROLE_WHITELIST.includes(t.role)) return null;
+  if (typeof t.content !== 'string') return null;
+  const clean = { uid: t.uid, serial: t.serial, role: t.role, content: t.content };
+  if (typeof t.ts === 'string') clean.ts = t.ts;
+  if (t.hidden === true) clean.hidden = true;   // 從 prompt 索引與對話區同時隱藏（僅存 true，false 免存）
+  const r = cleanResponse(t.response);
+  if (r === undefined) return null;   // response 存在但形狀不合法 → 整筆拒絕
+  clean.response = r;
+  return clean;
+}
 
 function cleanChat(chat) {
   if (!chat || typeof chat !== 'object' || !Array.isArray(chat.messages)) return null;
   const messages = [];
-  for (const m of chat.messages) {
-    if (!m || typeof m !== 'object') return null;
-    if (!ROLE_WHITELIST.includes(m.role)) return null;
-    if (typeof m.content !== 'string') return null;
-    const msg = { role: m.role, content: m.content };
-    if (typeof m.ts === 'string') msg.ts = m.ts;
-    if (typeof m.model === 'string') msg.model = m.model;
-    if (m.hidden === true) msg.hidden = true;   // 從 prompt 索引隱藏（僅存 true，false 免存）
-    messages.push(msg);
+  for (const t of chat.messages) {
+    const clean = cleanTurn(t);
+    if (!clean) return null;
+    messages.push(clean);
   }
   const clean = { messages };
   if (typeof chat.model === 'string') clean.model = chat.model;
   clean.createdAt = typeof chat.createdAt === 'string' ? chat.createdAt : timestamp();
   clean.updatedAt = timestamp();   // 一律由 server 蓋章
   return clean;
+}
+
+// v1 舊格式偵測：扁平陣列裡出現過 role==='assistant' 的頂層項目，即判定為舊格式
+// （v2 的 assistant 只會巢狀在 response，不會是頂層項目）。
+function isLegacyFlat(messages) {
+  return Array.isArray(messages) && messages.some(m => m && m.role === 'assistant');
+}
+
+// v1 扁平陣列 → v2 turn 結構：user 訊息緊接的下一筆若是 assistant 就配成 response，
+// 否則 response:null（例如串流被中止、沒收到任何內容那種懸空 prompt）。
+// 非 user/assistant 的舊角色（理論上不存在，因 v1 UI 從未產生 system）一律略過。
+function migrateFlatToTurns(messages) {
+  const turns = [];
+  let serial = 1;
+  for (let i = 0; i < messages.length; i++) {
+    const m = messages[i];
+    if (!m || m.role !== 'user') continue;
+    const turn = { uid: crypto.randomUUID(), serial: serial++, role: 'user', content: String(m.content || ''), response: null };
+    if (typeof m.ts === 'string') turn.ts = m.ts;
+    if (m.hidden === true) turn.hidden = true;
+    const next = messages[i + 1];
+    if (next && next.role === 'assistant') {
+      const r = { uid: crypto.randomUUID(), role: 'assistant', content: String(next.content || '') };
+      if (typeof next.ts === 'string') r.ts = next.ts;
+      if (typeof next.model === 'string') r.model = next.model;
+      turn.response = r;
+    }
+    turns.push(turn);
+  }
+  return turns;
 }
 
 // 解析 project / subject 參數 → 絕對檔案路徑；不合法回 null
@@ -206,13 +272,15 @@ router.get('/tree', async (req, res) => {
       for (const f of files) {
         if (!f.isFile() || !isVisible(f.name) || !f.name.endsWith('.json')) continue;
         const name = f.name.slice(0, -5);
-        let meta = { updatedAt: '', model: '', messageCount: 0 };
+        // turnCount：messages[] 一筆＝一個 turn（v1 舊檔尚未遷移時，同一陣列長度含 user+assistant
+        // 兩筆，數字會偏大；純展示用途、不影響功能，首次開啟該 subject 即遷移升級）
+        let meta = { updatedAt: '', model: '', turnCount: 0 };
         try {
           const j = JSON.parse(await fs.readFile(path.join(projDir, f.name), 'utf8'));
           meta = {
             updatedAt: typeof j.updatedAt === 'string' ? j.updatedAt : '',
             model: typeof j.model === 'string' ? j.model : '',
-            messageCount: Array.isArray(j.messages) ? j.messages.length : 0
+            turnCount: Array.isArray(j.messages) ? j.messages.length : 0
           };
         } catch (e) { /* 壞檔照列，meta 留空 */ }
         subjects.push({ name, ...meta });
@@ -234,6 +302,8 @@ router.get('/subject', async (req, res) => {
   if (!loc) return res.status(400).json({ ok: false, error: 'invalid project/name' });
   try {
     const chat = JSON.parse(await fs.readFile(loc.abs, 'utf8'));
+    // v1 舊格式即時遷移；不主動改寫檔案，下次存檔時自然落地成 v2（見檔頭說明）
+    if (isLegacyFlat(chat.messages)) chat.messages = migrateFlatToTurns(chat.messages);
     return res.json({ ok: true, chat });
   } catch (err) {
     if (err.code === 'ENOENT') return res.status(404).json({ ok: false, error: 'Not found' });
