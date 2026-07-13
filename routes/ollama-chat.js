@@ -287,7 +287,11 @@ router.post('/title', async (req, res) => {
   }
 
   const ac = new AbortController();
-  const timer = setTimeout(() => ac.abort(), 20000);   // 背景任務，逾時別讓使用者等太久
+  // 背景任務，可以比一般請求更寬容——實測 LAN 上較大的模型（如 14b）光生一句標題
+  // 就可能耗掉 15-20s（尤其與正式回覆併發搶同一顆模型的執行時），20s 太緊、常誤殺；
+  // 前端失敗只留 console.warn 不擋對話，逾時久一點換來成功率更划算。
+  const timer = setTimeout(() => ac.abort(), 45000);
+
   try {
     const upstream = await fetch(ollamaBase() + '/api/chat', {
       method: 'POST',

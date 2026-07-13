@@ -41,7 +41,8 @@
     project: null,   // 目前開啟的 project（資料夾名）
     subject: null,   // 目前開啟的 subject（檔名去 .json）
     chat: null,      // { model, createdAt, updatedAt, messages: [turn] }（turn 結構見 lib 檔頭）
-    needsAutoTitle: false,   // 目前 subject 是「新對話留空」的暫時檔名，等首個 prompt 送出後由 Ollama 命名
+    needsAutoTitle: false,   // 目前 subject 是「新對話留空」的暫時檔名；只在真正改名成功後才清（失敗會重試）
+    autoTitleInFlight: false,   // 防止上一次還沒回來就又送一個 title 生成請求（不代表已完成）
     streaming: false,
     abortCtl: null,
     collapsed: {}    // project name → true（樹狀收合狀態，僅記憶體）
@@ -375,19 +376,23 @@
     updateChrome();
     scrollBottom();
     persist();
-    if (state.needsAutoTitle) {
-      state.needsAutoTitle = false;   // 只在第一個 prompt 觸發一次
+    // needsAutoTitle 只在真正改名成功後才清（見 maybeAutoTitle）——失敗／逾時會保留，
+    // 下一則訊息自動重試；autoTitleInFlight 只是防同時併發兩個請求，不是「已完成」的意思。
+    if (state.needsAutoTitle && !state.autoTitleInFlight) {
       maybeAutoTitle(state.project, state.subject, text);
     }
     startStream(turn);
   }
 
-  // 背景任務：依首個 prompt 向 Ollama 要一句標題，成功則把暫時檔名（chat-<ts>）改成該標題。
-  // 與主串流並行（不等它），失敗只記 console、保留暫時檔名——已是可用的合法 subject，不影響對話。
+  // 背景任務：依 prompt 向 Ollama 要一句標題，成功則把暫時檔名（chat-<ts>）改成該標題。
+  // 與主串流並行（不等它）。失敗／逾時只記 console、**不清 needsAutoTitle**——保留暫時檔名
+  // （本身已是可用的合法 subject，不影響對話），讓下一則訊息送出時自動再試一次，直到成功
+  // 或使用者切走／手動改名（見 openSubject/closeSubject 對 needsAutoTitle 的處理）。
   function maybeAutoTitle(project, placeholder, promptText) {
+    state.autoTitleInFlight = true;
     L.generateTitle({ model: state.model, prompt: promptText }).then(function (raw) {
       var title = L.autoName(raw);   // 借用既有消毒/截斷規則，確保合法檔名
-      if (!title) return;
+      if (!title) throw new Error('empty title after sanitize');
       // 期間使用者可能已切走／手動改名——只有「目前仍是那個暫時檔名」才套用
       if (state.project !== project || state.subject !== placeholder) return;
       title = L.uniqueName(title, takenNames(project).filter(function (n) { return n !== placeholder; }));
@@ -395,6 +400,7 @@
         if (state.project === project && state.subject === placeholder) {
           state.project = d.project;
           state.subject = d.name;
+          state.needsAutoTitle = false;   // 真正改名成功才清，失敗維持 true 讓下一則訊息重試
           try {
             history.replaceState({ project: d.project, subject: d.name }, '',
               '?project=' + encodeURIComponent(d.project) + '&subject=' + encodeURIComponent(d.name));
@@ -404,7 +410,9 @@
         return refreshTree();   // 重繪樹（renderTree 依 state.project/subject 自行標記 active）
       });
     }).catch(function (err) {
-      console.warn('[ollama-chat] auto-title 失敗，保留暫時名稱：', err.message);
+      console.warn('[ollama-chat] auto-title 失敗，暫時保留現有名稱，下一則訊息會再試一次：', err.message);
+    }).then(function () {
+      state.autoTitleInFlight = false;
     });
   }
 

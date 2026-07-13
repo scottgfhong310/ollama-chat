@@ -1,6 +1,6 @@
 # ollama-chat — 設計決議（為什麼長這樣）
 
-> 版本 v1.3｜最後更新 2026-07-13
+> 版本 v1.4｜最後更新 2026-07-13
 
 「怎麼用」見 [README](./README.zh-Hant.md)；家族共同規範見
 [nodeapp-webapp-family](https://github.com/scottgfhong310/nodeapp-webapp-family)（此處只記本 app 特有的取捨）。
@@ -93,13 +93,19 @@ v1 是扁平陣列、`role` user/assistant 交替；v2 引入後**只在 `GET /s
    當暫時檔名（`ensureSubject()` 原本就有這個 fallback，這裡是重用，不是新發明一套命名法），
    `state.needsAutoTitle = true` 記下「這個名字是暫時的」。
 2. 使用者送出第一則訊息時，`send()` 除了照常開始串流回覆，**同時**背景呼叫
-   `POST /api/ollama-chat/title { model, prompt }`——非串流、20s 逾時，用一句系統提示要模型
+   `POST /api/ollama-chat/title { model, prompt }`——非串流、**45s 逾時**，用一句系統提示要模型
    給 25 字以內的短標題（字數而非「字詞」——三語 UI 下 CJK 沒有詞界，用字元數才對齊得起來）。
    與正式回覆**並行**（不 await 它才開始串流），不拖慢對話本身的第一個 token。
+   （逾時原訂 20s，實測 LAN 上較大模型如 14b 光生一句標題就可能吃掉 15–20s——尤其與正式回覆
+   併發搶同一顆模型的執行時，20s 常常誤殺；放寬到 45s 換成功率，背景任務多等一下不影響體感。）
 3. 拿到標題後，走**既有的 `POST /rename`**（`fs.rename`＋409 防覆蓋）把暫時檔名換成標題——
    複用 subject 改名的既有基礎設施，不必另開一套「建立時就地命名」的邏輯。
-4. 標題生成失敗（Ollama 掛了、逾時、輸出清消毒後是空字串）→ **靜默失敗**（`console.warn`，
-   不彈 toast）：暫時檔名本身就是合法可用的 subject，不影響對話能不能繼續；使用者也能隨時手動改名。
+4. **標題生成失敗（Ollama 掛了、逾時、輸出清消毒後是空字串）→ 保留暫時檔名、`needsAutoTitle`
+   維持 `true`，下一則訊息送出時自動重試**（`state.autoTitleInFlight` 只防同時併發兩個請求，
+   不代表「已完成」）；只在 console 留一行警告，不彈 toast、不影響對話能不能繼續。
+   ⚠️ **v1.2 曾有的 bug**：`send()` 一度在觸發背景命名的當下就把 `needsAutoTitle` 清成 `false`
+   （不論成功失敗），失敗一次就永久卡在暫時檔名、之後也不會再試、且完全靜默——使用者只能發現
+   「Subject 沒被改名」卻查不出原因。v1.3 修正為**只在真正改名成功後才清旗標**。
 
 **標題文字的合法性交給既有機制**：後端 `/title` 只做「小型本地模型常見不聽話」的保底清理
 （掐第一行、去引號、去 `Title:` 前綴、去 markdown 符號），**不**重複做檔名合法性驗證——
