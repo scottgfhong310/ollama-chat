@@ -7,7 +7,10 @@
  *
  * 資料模型（與後端 routes/ollama-chat.js 對齊；v2 request-response 結構）：
  *   project（資料夾）→ subject（一個 JSON 檔 = 一組對話）→ messages[]（一筆＝一個 turn）
- *   chat = { model, createdAt, updatedAt, messages: [turn] }
+ *   chat = { uid, model, createdAt, updatedAt, messages: [turn] }
+ *     uid                   // 對話穩定 id（rename/搬 project 不失效）；deep link 用 ?uid= 定位，
+ *                           //   免於明文 project/subject 因改名而失連。舊檔缺 uid 時，後端
+ *                           //   GET /subject 首次讀取即補產生並落地（唯一「讀觸發寫」例外，見 DESIGN.md §1.2）
  *   turn = {
  *     uid,                 // 穩定 id：request↔response 的配對 key，也是 DOM 錨點（#msg-<uid>）
  *     serial,               // 建立時的序號（1-based）；一經指派永不重編，匯出/引用用它才穩定
@@ -48,6 +51,7 @@
  *                                                  （新對話 Subject 留空時用；20s 逾時／失敗皆 reject）
  *   OllamaChatLib.getTree()                     → Promise<Array<project>>
  *   OllamaChatLib.loadSubject(project, name)    → Promise<chat>
+ *   OllamaChatLib.loadSubjectByUid(uid)         → Promise<{project,name,chat}>  deep link 定位用
  *   OllamaChatLib.saveSubject(project, name, chat) → Promise<{updatedAt}>
  *   OllamaChatLib.renameSubject(project, name, newProject, newName) → Promise<{project,name}>
  *   OllamaChatLib.deleteSubject(project, name)  → Promise<{ok}>
@@ -178,7 +182,7 @@
 
   function newChat(model) {
     var ts = timestamp();
-    return { model: model || '', createdAt: ts, updatedAt: ts, messages: [] };
+    return { uid: genUid(), model: model || '', createdAt: ts, updatedAt: ts, messages: [] };
   }
 
   // 新 request turn。serial 由呼叫端傳入（慣例：messages.length + 1），
@@ -235,6 +239,14 @@
     var q = '?project=' + encodeURIComponent(project) + '&name=' + encodeURIComponent(name);
     return jsonApi(bust(SUBJECT_API + q), { cache: 'no-store' })
       .then(function (d) { return d.chat; });
+  }
+
+  // uid 定位（rename/搬 project 不失效——後端整檔掃描比對 chat.uid）；回傳含目前 project/name，
+  // 供呼叫端同步 state（deep link 用，不能只回 chat）。
+  function loadSubjectByUid(uid) {
+    var q = '?uid=' + encodeURIComponent(uid);
+    return jsonApi(bust(SUBJECT_API + q), { cache: 'no-store' })
+      .then(function (d) { return { project: d.project, name: d.name, chat: d.chat }; });
   }
 
   function saveSubject(project, name, chat) {
@@ -404,6 +416,7 @@
     generateTitle: generateTitle,
     getTree: getTree,
     loadSubject: loadSubject,
+    loadSubjectByUid: loadSubjectByUid,
     saveSubject: saveSubject,
     renameSubject: renameSubject,
     deleteSubject: deleteSubject,

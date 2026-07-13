@@ -1,6 +1,6 @@
 # ollama-chat
 
-> 版本 v1.1｜最後更新 2026-07-13
+> 版本 v1.2｜最後更新 2026-07-13
 
 [English] | [繁體中文](README.zh-Hant.md) | [日本語](README.ja.md)
 
@@ -22,7 +22,8 @@ Not compatible with GitHub Pages (requires the Node backend).
 - **Markdown replies** with fenced-code copy buttons; user content is never translated or altered.
 - **Rename / move**: retitle a subject or move it to another project from the side rail (name = path; refuses to overwrite an existing target).
 - **Export** any subject as Markdown (`<subject>-yyyyMMddHHmmss.md`).
-- **Deep links**: `?project=<p>&subject=<s>` opens a conversation directly.
+- **Deep links**: `?uid=<subject uid>` opens a conversation directly and stays valid across
+  renames/moves; the legacy `?project=<p>&subject=<s>` form still opens and auto-upgrades to `?uid=`.
 - i18n (zh-Hant / en / ja), CSS-variable theming (default dark), family side-tool rail.
 
 ## Install & run
@@ -55,7 +56,8 @@ public/upload/ollama-chat/chats/    # conversations (not committed)
 | POST | `/api/ollama-chat/chat` | Proxy of Ollama `/api/chat` (streaming NDJSON pass-through; errors return `{ ok:false, error }`) |
 | POST | `/api/ollama-chat/title` | `{ model, prompt }` — non-streaming call that generates a short conversation title → `{ ok, title }` (20s timeout) |
 | GET | `/api/ollama-chat/tree` | Scan `chats/` → `{ ok, projects: [{ name, subjects }] }` |
-| GET | `/api/ollama-chat/subject?project=&name=` | Read one subject → `{ ok, chat }` |
+| GET | `/api/ollama-chat/subject?project=&name=` | Read one subject → `{ ok, chat, project, name }` |
+| GET | `/api/ollama-chat/subject?uid=` | Locate a subject by uid (immune to rename/move) → `{ ok, chat, project, name }` |
 | POST | `/api/ollama-chat/subject` | `{ project, name, chat }` — write (overwrite) one subject |
 | POST | `/api/ollama-chat/rename` | `{ project, name, newProject, newName }` — rename / move to another project (409 if target exists) |
 | POST | `/api/ollama-chat/delete` | `{ project, name }` — move the file to `chats/.bak/` |
@@ -73,6 +75,7 @@ which passes Ollama's NDJSON chunks through verbatim.
 // linked by uid rather than by array position. serial is assigned once, at creation, and
 // never renumbered, so exports/citations stay stable even if earlier turns are later hidden.
 {
+  "uid": "a37a1b05-...",             // stable conversation id (rename-stable); ?uid= deep links use it
   "model": "qwen2.5:latest",        // last used model
   "createdAt": "20260711000000",    // yyyyMMddHHmmss (server-normalised)
   "updatedAt": "20260711000102",    // stamped by the server on every save

@@ -1,12 +1,13 @@
 # ollama-chat — Session context
 
-> 版本 v1.2｜最後更新 2026-07-13
+> 版本 v1.3｜最後更新 2026-07-13
 
-本地 **Ollama** 模型的全版面 Web 聊天介面：**project（資料夾）→ subject（一組對話＝一個 JSON 檔）
-→ turn（request-response 配對，`uid`/`serial`）**。串流回覆（NDJSON 直通）、markdown 渲染（marked + DOMPurify）、
-自動命名（首句 → subject、落 `inbox`；「新對話」Subject 留空時改由 Ollama 依首個 prompt 背景命名）、
-prompt 可隱藏（索引＋對話區＋context＋匯出同步排除）、匯出 Markdown、深連結 `?project=&subject=`。
-輕量 Express 後端（Ollama proxy＋對話存取），無資料庫、無 registry——純檔案掃描。
+本地 **Ollama** 模型的全版面 Web 聊天介面：**project（資料夾）→ subject（一組對話＝一個 JSON 檔，
+帶穩定 `uid`）→ turn（request-response 配對，`uid`/`serial`）**。串流回覆（NDJSON 直通）、
+markdown 渲染（marked + DOMPurify）、自動命名（首句 → subject、落 `inbox`；「新對話」Subject
+留空時改由 Ollama 依首個 prompt 背景命名）、prompt 可隱藏（索引＋對話區＋context＋匯出同步排除）、
+匯出 Markdown、深連結 `?uid=<subject uid>`（rename-stable；舊格式 `?project=&subject=` 仍可開，
+開啟後自動升級網址）。輕量 Express 後端（Ollama proxy＋對話存取），無資料庫、無 registry——純檔案掃描。
 
 本 app 屬於 **nodeapp WebApp 家族**；共同規範與流程在
 <https://github.com/scottgfhong310/nodeapp-webapp-family>（`DESIGN_GUIDELINES.md` 規範、`WORKFLOW.md` 流程）。**改動前請先讀那兩份，照其中 canon 做。**
@@ -46,6 +47,13 @@ npm install && node app.js          # → http://localhost:3000/apps/ollama-chat
   回覆或 `null`。`uid` 是 request↔response 配對 key 也是 DOM 錨點（`#msg-<uid>`）；`serial`
   建立時指派一次、永不重編（匯出引用要的穩定編號）。v1 舊格式（扁平陣列）只在 `GET /subject`
   讀取時偵測並即時轉換，不主動改寫檔案，下次存檔自然落地成 v2。詳見 DESIGN.md §1／§1.1。
+- **subject 也有 `uid`（chat 頂層），深連結走 `?uid=` 而非明文 `?project=&subject=`**：
+  rename／搬 project 只是 `fs.rename`，`uid` 原封不動，網址因此對改名免疫；`GET /subject?uid=`
+  全目錄掃描比對定位（`findSubjectByUid()`）。舊檔缺 `uid` 時讀取當下補產生**並立即寫回磁碟**
+  ——是全專案唯一的「讀觸發寫」例外（v1→v2 turn 遷移不落地，這裡必須落地，因為 uid 一旦被記進
+  網址列就必須穩定）。舊格式 `?project=&subject=` 深連結仍可開，開啟後 `replaceState` 就地升級成
+  `?uid=`。改名成功後**不需要**也**不會**改網址。詳見 DESIGN.md §1.2。project 沒有對應 uid
+  （裸資料夾無檔案可掛 id，加 marker 檔/registry 違反「名稱即路徑」原則）——僅 subject 這層有。
 - **可嵌入 lib** `ollama-chat-lib.js`（`window.OllamaChatLib`，純邏輯、不碰 DOM）：
   `chatStream()`（fetch ReadableStream 逐行解析 NDJSON、AbortController 中止）、
   `newTurn`/`newResponse`（建構子，`genUid` 用 `crypto.randomUUID`）、
@@ -91,9 +99,10 @@ npm install && node app.js          # → http://localhost:3000/apps/ollama-chat
 - **subject 列內動作（改名／刪除）**：左欄每列尾端 `more_vert`（hover 現身、觸控恆顯）展開
   `edit`／`delete` 兩鍵（一次只展一列、`stopPropagation` 不觸發開啟）——**動作對象＝該列**，
   不必先開啟該 subject；改名走與「新對話」共用 modal 的 rename 模式（`renameTarget` 記對象），
-  改到／刪到目前開啟中的那組才同步 state／URL 或收畫面；串流中僅擋「目標＝開啟中對話」。
+  改到／刪到目前開啟中的那組才同步 state（**網址不動**，`?uid=` 對改名免疫，見上）；
+  串流中僅擋「目標＝開啟中對話」。
 - **popstate 防護**：modal 的 `<a href="#!">` hash 變化也會觸發 popstate——handler 先比對
-  `?project/&subject` 與目前 state，相同就忽略（否則改名後會拿舊名重載 → 404）。
+  `?uid=`（或舊格式 `?project=&subject=`）與目前 state，相同就忽略（避免無謂重載）。
 - **複製件登記**（共用件改版時靠這份清單同步）：`materialize-dark.css` ←家族 repo、
   `side-tool.css` ←html-viewer（〔正統〕flex 版）、`thinking-dot.css` ←markdown-library（canonical）、
   `i18n.js` ←html-viewer（家族 30 份複製點之一）、`LICENSE` ←家族。

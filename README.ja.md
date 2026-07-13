@@ -1,6 +1,6 @@
 # ollama-chat
 
-> 版本 v1.1｜最後更新 2026-07-13
+> 版本 v1.2｜最後更新 2026-07-13
 
 [English](README.md) | [繁體中文](README.zh-Hant.md) | [日本語]
 
@@ -22,7 +22,8 @@ GitHub Pages には非対応（Node バックエンドが必要）。
 - **Markdown 返信**：fenced code にコピーボタン付き；データ内容は翻訳・改変しない。
 - **名前変更／移動**：サイドレールから subject の改名や別 project への移動（名前＝パス；移動先が既存の場合は拒否、上書きしない）。
 - **エクスポート**：任意の subject を Markdown（`<subject>-yyyyMMddHHmmss.md`）に。
-- **ディープリンク**：`?project=<p>&subject=<s>` で会話を直接開く。
+- **ディープリンク**：`?uid=<subject uid>` で会話を直接開く——改名／project 移動後も URL は有効。
+  旧形式の `?project=<p>&subject=<s>` も引き続き開けて、開いた時点で自動的に `?uid=` へ移行する。
 - 3 言語 i18n、CSS 変数テーマ（デフォルト dark）、ファミリー共通サイドツールレール。
 
 ## インストールと実行
@@ -55,7 +56,8 @@ public/upload/ollama-chat/chats/    # 会話データ（コミットしない）
 | POST | `/api/ollama-chat/chat` | Ollama `/api/chat` のプロキシ（NDJSON ストリームをそのまま通過；エラー時は `{ ok:false, error }`） |
 | POST | `/api/ollama-chat/title` | `{ model, prompt }`——非ストリーミング、短い会話タイトルを生成 → `{ ok, title }`（20秒でタイムアウト） |
 | GET | `/api/ollama-chat/tree` | `chats/` をスキャン → `{ ok, projects: [{ name, subjects }] }` |
-| GET | `/api/ollama-chat/subject?project=&name=` | subject を 1 件読む → `{ ok, chat }` |
+| GET | `/api/ollama-chat/subject?project=&name=` | subject を 1 件読む → `{ ok, chat, project, name }` |
+| GET | `/api/ollama-chat/subject?uid=` | uid で subject を特定して読む（改名／project 移動の影響を受けない）→ `{ ok, chat, project, name }` |
 | POST | `/api/ollama-chat/subject` | `{ project, name, chat }`——ファイル全体を上書き保存 |
 | POST | `/api/ollama-chat/rename` | `{ project, name, newProject, newName }`——名前変更／別 project へ移動（移動先が存在する場合は 409） |
 | POST | `/api/ollama-chat/delete` | `{ project, name }`——ファイルを `chats/.bak/` へ移動 |
@@ -73,6 +75,7 @@ public/upload/ollama-chat/chats/    # 会話データ（コミットしない）
 // serial は作成時に一度だけ割り当てられ、以後リナンバーされない。前の turn を隠しても
 // エクスポートや参照の番号は安定して保たれる。
 {
+  "uid": "a37a1b05-...",             // 会話の安定 id（改名しても不変）；?uid= ディープリンクが使用
   "model": "qwen2.5:latest",        // 最後に使用したモデル
   "createdAt": "20260711000000",    // yyyyMMddHHmmss（サーバーで正規化）
   "updatedAt": "20260711000102",    // 保存のたびにサーバーが刻印

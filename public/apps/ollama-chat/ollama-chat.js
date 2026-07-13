@@ -272,32 +272,53 @@
 
   /* ---------- 開啟 / 建立 subject ---------- */
 
-  function openSubject(project, name, skipHistory) {
+  // 套用「已載入的 chat」到畫面／state／網址。網址一律走 ?uid=（rename/搬 project 不失效）；
+  // historyMode：undefined→pushState（新開一筆歷史）、true→不動網址（popstate／已就位的深連結）、
+  // 'replace'→replaceState（舊格式 ?project=&subject= 深連結，開啟後就地升級成 ?uid=，不多留歷史筆數）。
+  function applyOpenedSubject(project, name, chat, historyMode) {
+    state.project = project;
+    state.subject = name;
+    state.chat = chat;
+    // subject 記錄的模型若仍可用，跟著切換
+    if (chat.model && state.models.some(function (m) { return m.name === chat.model; })) {
+      setModel(chat.model);
+    }
+    if (historyMode !== true) {
+      try {
+        var url = '?uid=' + encodeURIComponent(chat.uid);
+        if (historyMode === 'replace') history.replaceState({ uid: chat.uid }, '', url);
+        else history.pushState({ uid: chat.uid }, '', url);
+      } catch (e) {}
+    }
+    state.needsAutoTitle = false;   // 開啟既有 subject 一律視為已命名（邊界情況見 DESIGN.md）
+    renderMessages();
+    updateChrome();
+    markTreeActive();
+    scrollBottom();
+  }
+
+  function openSubject(project, name, historyMode) {
     if (state.streaming) {
       M.toast({ html: I18n.t('toast.busy'), classes: 'orange' });
       return Promise.resolve();
     }
     return L.loadSubject(project, name).then(function (chat) {
-      state.project = project;
-      state.subject = name;
-      state.chat = chat;
-      // subject 記錄的模型若仍可用，跟著切換
-      if (chat.model && state.models.some(function (m) { return m.name === chat.model; })) {
-        setModel(chat.model);
-      }
-      if (!skipHistory) {
-        try {
-          history.pushState({ project: project, subject: name }, '',
-            '?project=' + encodeURIComponent(project) + '&subject=' + encodeURIComponent(name));
-        } catch (e) {}
-      }
-      state.needsAutoTitle = false;   // 開啟既有 subject 一律視為已命名（邊界情況見 DESIGN.md）
-      renderMessages();
-      updateChrome();
-      markTreeActive();
-      scrollBottom();
+      applyOpenedSubject(project, name, chat, historyMode);
     }).catch(function (err) {
       M.toast({ html: I18n.t('toast.loadFail', { n: project + '／' + name, m: err.message }), classes: 'red' });
+    });
+  }
+
+  // uid 定位版：deep link（?uid=）與 popstate 用。找不到（改名前的舊 uid 亂入等）給明確錯誤 toast。
+  function openSubjectByUid(uid, historyMode) {
+    if (state.streaming) {
+      M.toast({ html: I18n.t('toast.busy'), classes: 'orange' });
+      return Promise.resolve();
+    }
+    return L.loadSubjectByUid(uid).then(function (d) {
+      applyOpenedSubject(d.project, d.name, d.chat, historyMode);
+    }).catch(function (err) {
+      M.toast({ html: I18n.t('toast.loadFail', { n: uid, m: err.message }), classes: 'red' });
     });
   }
 
@@ -322,8 +343,7 @@
     state.subject = name;
     state.chat = L.newChat(state.model);
     try {
-      history.pushState({ project: project, subject: name }, '',
-        '?project=' + encodeURIComponent(project) + '&subject=' + encodeURIComponent(name));
+      history.pushState({ uid: state.chat.uid }, '', '?uid=' + encodeURIComponent(state.chat.uid));
     } catch (e) {}
     updateChrome();
     return true;
@@ -401,10 +421,7 @@
           state.project = d.project;
           state.subject = d.name;
           state.needsAutoTitle = false;   // 真正改名成功才清，失敗維持 true 讓下一則訊息重試
-          try {
-            history.replaceState({ project: d.project, subject: d.name }, '',
-              '?project=' + encodeURIComponent(d.project) + '&subject=' + encodeURIComponent(d.name));
-          } catch (e) {}
+          // 網址不必動：?uid= 是 rename-stable，改名不改 chat.uid（見 applyOpenedSubject）
           updateChrome();
         }
         return refreshTree();   // 重繪樹（renderTree 依 state.project/subject 自行標記 active）
@@ -721,8 +738,7 @@
     state.needsAutoTitle = pendingTitle;
     state.chat = L.newChat(state.model);
     try {
-      history.pushState({ project: project, subject: subject }, '',
-        '?project=' + encodeURIComponent(project) + '&subject=' + encodeURIComponent(subject));
+      history.pushState({ uid: state.chat.uid }, '', '?uid=' + encodeURIComponent(state.chat.uid));
     } catch (e) {}
     M.Modal.getInstance(document.getElementById('new-modal')).close();
     renderMessages();
@@ -744,14 +760,11 @@
     }
     L.renameSubject(src.project, src.name, project, subject).then(function (d) {
       var label = d.project + '／' + d.name;
-      // 改到的是目前開啟的對話 → 同步 state 與 URL；其他列只需更新樹
+      // 改到的是目前開啟的對話 → 同步 state；其他列只需更新樹。
+      // 網址不必動：?uid= 是 rename-stable，改名/搬 project 不改 chat.uid（見 applyOpenedSubject）
       if (state.subject && src.project === state.project && src.name === state.subject) {
         state.project = d.project;
         state.subject = d.name;
-        try {
-          history.replaceState({ project: d.project, subject: d.name }, '',
-            '?project=' + encodeURIComponent(d.project) + '&subject=' + encodeURIComponent(d.name));
-        } catch (e) {}
         updateChrome();
       }
       modal.close();
@@ -944,11 +957,17 @@
       confirmModal();
     });
 
-    // 上一頁／下一頁：依 ?project=&subject= 重新載入。
+    // 上一頁／下一頁：優先看 ?uid=，沒有才退回舊格式 ?project=&subject=（相容舊分頁/書籤）。
     // 注意：hash 變化（modal 內 href="#!" 的取消鍵等）也會觸發 popstate，
-    // 此時 search 對應的對話與目前 state 相同 → 忽略，避免無謂重載（改名後更會 404）。
+    // 此時網址對應的對話與目前 state 相同 → 忽略，避免無謂重載（改名後用舊格式更會 404）。
     window.addEventListener('popstate', function () {
       var q = new URLSearchParams(location.search);
+      var uid = q.get('uid');
+      if (uid) {
+        if (state.chat && state.chat.uid === uid) return;
+        openSubjectByUid(uid, true);
+        return;
+      }
       var p = q.get('project'), s = q.get('subject');
       if (p === state.project && s === state.subject) return;
       if (p && s) openSubject(p, s, true);
@@ -989,11 +1008,15 @@
     updateChrome();
     document.body.classList.add('is-empty');
 
-    // ?project=&subject= 深連結：模型清單先就緒（openSubject 會比對模型），再開啟
+    // 深連結：優先 ?uid=（rename-stable，網址不動）；沒有才退回舊格式 ?project=&subject=，
+    // 開啟後就地把網址升級成 ?uid=（historyMode:'replace'，不多留一筆歷史）。
+    // 模型清單先就緒（openSubject/openSubjectByUid 會比對模型），再開啟。
     var q = new URLSearchParams(location.search);
+    var uid = q.get('uid');
     var p = q.get('project'), s = q.get('subject');
     Promise.all([loadModels(), refreshTree()]).then(function () {
-      if (p && s) openSubject(p, s, true);
+      if (uid) openSubjectByUid(uid, true);
+      else if (p && s) openSubject(p, s, 'replace');
     });
     loadTemplates();
 

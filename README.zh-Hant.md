@@ -1,6 +1,6 @@
 # ollama-chat
 
-> 版本 v1.1｜最後更新 2026-07-13
+> 版本 v1.2｜最後更新 2026-07-13
 
 [English](README.md) | [繁體中文] | [日本語](README.ja.md)
 
@@ -22,7 +22,8 @@ light/dark 主題。輕量 Express 後端（Ollama proxy＋對話存取）。
 - **Markdown 回覆**：fenced code 附複製鈕；資料內容永不翻譯、不改寫。
 - **改名／搬移**：側鍵改 subject 標題或搬到別的 project（名稱即路徑；目標已存在則拒絕、不覆蓋）。
 - **匯出**：任一 subject 匯出成 Markdown（`<subject>-yyyyMMddHHmmss.md`）。
-- **深連結**：`?project=<p>&subject=<s>` 直接開啟某組對話。
+- **深連結**：`?uid=<subject uid>` 直接開啟某組對話——改名／搬 project 後網址仍然有效；舊格式
+  `?project=<p>&subject=<s>` 仍可開，開啟後會自動升級成 `?uid=`。
 - 三語 i18n、CSS 變數主題（預設 dark）、家族右側工具列。
 
 ## 安裝與執行
@@ -55,7 +56,8 @@ public/upload/ollama-chat/chats/    # 對話內容（不進版控）
 | POST | `/api/ollama-chat/chat` | 轉 Ollama `/api/chat`（NDJSON 串流直通；失敗回 `{ ok:false, error }`） |
 | POST | `/api/ollama-chat/title` | `{ model, prompt }`——非串流，生一句短對話標題 → `{ ok, title }`（20s 逾時） |
 | GET | `/api/ollama-chat/tree` | 掃 `chats/` → `{ ok, projects: [{ name, subjects }] }` |
-| GET | `/api/ollama-chat/subject?project=&name=` | 讀一個 subject → `{ ok, chat }` |
+| GET | `/api/ollama-chat/subject?project=&name=` | 讀一個 subject → `{ ok, chat, project, name }` |
+| GET | `/api/ollama-chat/subject?uid=` | 用 uid 定位讀一個 subject（改名/搬 project 免疫）→ `{ ok, chat, project, name }` |
 | POST | `/api/ollama-chat/subject` | `{ project, name, chat }`——整檔覆寫存檔 |
 | POST | `/api/ollama-chat/rename` | `{ project, name, newProject, newName }`——改名／搬到別的 project（目標已存在回 409） |
 | POST | `/api/ollama-chat/delete` | `{ project, name }`——檔案移到 `chats/.bak/` 備份 |
@@ -71,6 +73,7 @@ public/upload/ollama-chat/chats/    # 對話內容（不進版控）
 // messages[] 一筆＝一個 turn——request 與其（選填）response 配成一組，靠 uid 而非陣列位置連結。
 // serial 建立時指派一次、永不重編，即使日後前面的 turn 被隱藏，匯出／引用的編號仍然穩定。
 {
+  "uid": "a37a1b05-...",             // 對話穩定 id（rename-stable）；深連結 ?uid= 用它定位
   "model": "qwen2.5:latest",        // 最後使用的模型
   "createdAt": "20260711000000",    // yyyyMMddHHmmss（server 正規化）
   "updatedAt": "20260711000102",    // 每次存檔由 server 蓋章

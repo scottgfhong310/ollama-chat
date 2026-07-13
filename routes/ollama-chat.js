@@ -14,12 +14,15 @@
  *
  * 對話存取（project=資料夾、subject=JSON 檔；純檔案掃描，無 registry）：
  *   GET  /api/ollama-chat/tree      → 掃 chats/ 建 project→subject 樹（讀各檔 meta）
- *   GET  /api/ollama-chat/subject   → ?project=&name= 讀一個 subject JSON
- *                                     （讀到 v1 舊格式扁平陣列會自動遷移成 v2 turn 結構再回傳，見 migrateFlatToTurns）
+ *   GET  /api/ollama-chat/subject   → ?project=&name= 或 ?uid=<uid> 讀一個 subject JSON
+ *                                     （讀到 v1 舊格式扁平陣列會自動遷移成 v2 turn 結構再回傳，見 migrateFlatToTurns；
+ *                                     缺 chat.uid 會即時補一個並落地——uid 要穩定，這裡是唯一的「讀順手寫」例外，見 DESIGN.md §1.2）
  *   POST /api/ollama-chat/subject   → { project, name, chat } 整檔覆寫存檔
  *                                     （訊息追加型覆寫，不留 .bak——設計決議見 DESIGN.md）
  *   POST /api/ollama-chat/rename    → { project, name, newProject, newName } 改名／搬 project
- *                                     （fs.rename；目標已存在則 409 拒絕，不覆蓋）
+ *                                     （fs.rename；目標已存在則 409 拒絕，不覆蓋。只搬檔案，
+ *                                     不動內容，chat.uid 隨檔案內容原封不動——這正是 URL 用 uid
+ *                                     而非明文 project/subject 就不怕改名的原因，見 DESIGN.md §1.2）
  *   POST /api/ollama-chat/delete    → { project, name } 移到 chats/.bak/ 備份（不直接 unlink）
  *
  * Prompt 樣板庫（全域單檔 prompts.json；owner registry 式整清單覆寫，§3.5 精神）：
@@ -143,10 +146,14 @@ function cleanChat(chat) {
     if (!clean) return null;
     messages.push(clean);
   }
-  const clean = { messages };
+  const clean = {};
+  // uid：subject 的穩定識別碼，供 ?uid= 尋址、改名/搬 project 不失效。正常情況下客戶端
+  // 一定帶著（newChat() 建立時就生成，GET /subject 讀到舊檔也會補），這裡只是防禦性保底。
+  clean.uid = typeof chat.uid === 'string' && chat.uid ? chat.uid : crypto.randomUUID();
   if (typeof chat.model === 'string') clean.model = chat.model;
   clean.createdAt = typeof chat.createdAt === 'string' ? chat.createdAt : timestamp();
   clean.updatedAt = timestamp();   // 一律由 server 蓋章
+  clean.messages = messages;
   return clean;
 }
 
@@ -187,6 +194,28 @@ function subjectPath(project, name) {
   if (!p || !n) return null;
   const abs = path.join(CHATS_DIR, p, n + '.json');
   return insideChats(abs) ? { project: p, name: n, abs } : null;
+}
+
+// 依 uid 找 subject：掃全部 project/subject 逐檔比對 chat.uid（沒有索引，O(全部 subject)，
+// 與 GET /tree 的既有全掃成本同級——見 §7 已知限制）。找不到（含尚未補過 uid 的舊檔）回 null。
+async function findSubjectByUid(uid) {
+  let dirs;
+  try { dirs = await fs.readdir(CHATS_DIR, { withFileTypes: true }); } catch (e) { return null; }
+  for (const dir of dirs) {
+    if (!dir.isDirectory() || !isVisible(dir.name)) continue;
+    const projDir = path.join(CHATS_DIR, dir.name);
+    let files;
+    try { files = await fs.readdir(projDir, { withFileTypes: true }); } catch (e) { continue; }
+    for (const f of files) {
+      if (!f.isFile() || !isVisible(f.name) || !f.name.endsWith('.json')) continue;
+      const abs = path.join(projDir, f.name);
+      try {
+        const j = JSON.parse(await fs.readFile(abs, 'utf8'));
+        if (j.uid === uid) return { project: dir.name, name: f.name.slice(0, -5), abs };
+      } catch (e) { /* 壞檔跳過 */ }
+    }
+  }
+  return null;
 }
 
 /* ---------- Ollama proxy ---------- */
@@ -371,15 +400,32 @@ router.get('/tree', async (req, res) => {
   }
 });
 
-// GET /api/ollama-chat/subject?project=&name= — 讀一個 subject
+// 讀一個 subject 檔＋v1→v2 遷移＋確保 chat.uid 存在（缺的話生成並立即落地——
+// 跟訊息結構的「讀時遷移、下次存檔才落地」不同：uid 的價值就是穩定，不能等，
+// 這是本檔唯一一處「讀順手寫」，見 DESIGN.md §1.2）。
+async function readSubjectFile(abs) {
+  const chat = JSON.parse(await fs.readFile(abs, 'utf8'));
+  if (isLegacyFlat(chat.messages)) chat.messages = migrateFlatToTurns(chat.messages);
+  if (typeof chat.uid !== 'string' || !chat.uid) {
+    chat.uid = crypto.randomUUID();
+    await fs.writeFile(abs, JSON.stringify(chat, null, 2) + '\n', 'utf8');
+  }
+  return chat;
+}
+
+// GET /api/ollama-chat/subject — ?project=&name= 或 ?uid=<uid>
 router.get('/subject', async (req, res) => {
-  const loc = subjectPath(req.query.project, req.query.name);
-  if (!loc) return res.status(400).json({ ok: false, error: 'invalid project/name' });
   try {
-    const chat = JSON.parse(await fs.readFile(loc.abs, 'utf8'));
-    // v1 舊格式即時遷移；不主動改寫檔案，下次存檔時自然落地成 v2（見檔頭說明）
-    if (isLegacyFlat(chat.messages)) chat.messages = migrateFlatToTurns(chat.messages);
-    return res.json({ ok: true, chat });
+    if (typeof req.query.uid === 'string' && req.query.uid) {
+      const loc = await findSubjectByUid(req.query.uid);
+      if (!loc) return res.status(404).json({ ok: false, error: 'Not found' });
+      const chat = await readSubjectFile(loc.abs);
+      return res.json({ ok: true, chat, project: loc.project, name: loc.name });
+    }
+    const loc = subjectPath(req.query.project, req.query.name);
+    if (!loc) return res.status(400).json({ ok: false, error: 'invalid project/name' });
+    const chat = await readSubjectFile(loc.abs);
+    return res.json({ ok: true, chat, project: loc.project, name: loc.name });
   } catch (err) {
     if (err.code === 'ENOENT') return res.status(404).json({ ok: false, error: 'Not found' });
     console.error('[ollama-chat] GET /subject failed:', err);
@@ -397,7 +443,7 @@ router.post('/subject', async (req, res) => {
   try {
     await fs.mkdir(path.dirname(loc.abs), { recursive: true });
     await fs.writeFile(loc.abs, JSON.stringify(clean, null, 2) + '\n', 'utf8');
-    return res.json({ ok: true, project: loc.project, name: loc.name, updatedAt: clean.updatedAt });
+    return res.json({ ok: true, project: loc.project, name: loc.name, updatedAt: clean.updatedAt, uid: clean.uid });
   } catch (err) {
     console.error('[ollama-chat] POST /subject failed:', err);
     return res.status(500).json({ ok: false, error: err.message });
