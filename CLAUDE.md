@@ -1,6 +1,6 @@
 # ollama-chat — Session context
 
-> 版本 v1.4｜最後更新 2026-07-13
+> 版本 v1.5｜最後更新 2026-07-13
 
 本地 **Ollama** 模型的全版面 Web 聊天介面：**project（資料夾，帶穩定 `uid`）→ subject（一組對話＝
 一個 JSON 檔，帶穩定 `uid`）→ turn（request-response 配對，`uid`/`serial`）**。串流回覆（NDJSON 直通）、
@@ -77,6 +77,13 @@ npm install && node app.js          # → http://localhost:3000/apps/ollama-chat
   app CSS 只調間距／寬度。**Materialize 1.0 的 label 自動浮起在動態情境不可靠**——控制器自掛
   focus／input／blur 三個 listener 同步 `.active`（語意與其原生一致）。訊息氣泡則是本 app 自訂設計
   （user `--user-bubble` 圓角泡、assistant 無框全寬），非 Materialize 元件。
+- **改名／新對話 modal 的 Project 欄位是手刻下拉，不是原生 `<datalist>`**（家族 §5.11 版面坑）：
+  原生 datalist 在 Materialize modal 裡常常不彈出（單純 focus 不觸發、彈出了也常被 modal 的
+  `overflow-y:auto` 裁掉）。`#project-picker` 是 body 級浮動 `<ul>`（不巢狀在 modal 內），
+  `position:fixed` 座標由 `openProjectPicker()` 依輸入框 `getBoundingClientRect()` 現算；
+  `focus`／`input` 都會開（不必等打字），選項綁 `mousedown`+`preventDefault`（早於 `blur`，
+  避免點擊因欄位先失焦而落空）。篩選對輸入值做 substring match，找不到就直接隱藏——使用者
+  仍可自由打全新 project 名稱建立新資料夾，不受限於既有清單。
 - **markdown → HTML 在控制器不在 lib**（DOM 工作）：marked（鎖 `12.0.2`）+ DOMPurify（鎖 `3.1.6`），
   連結一律 `target=_blank rel=noopener`；串流中 120ms 節流全文重繪；完成後補 §4.5 式複製鈕
   （light DOM，可用 Material Icons，不必 inline SVG）。

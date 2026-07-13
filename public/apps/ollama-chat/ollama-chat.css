@@ -829,3 +829,37 @@ body.is-empty .empty-state {
   #toast-container, .code-wrap .code-copy { display: none !important; }
   #chat-scroll { overflow: visible; }
 }
+
+/* ===== 新對話／改名 modal：Project 欄位下拉挑選（手刻，非瀏覽器原生 <datalist>——
+   modal 開合動畫用 transform、本身 overflow-y:auto，巢狀在裡面的下拉常被裁掉或整個不顯示；
+   改成 body 級浮動元素＋position:fixed（JS 依 input 位置算座標），focus／輸入就開，
+   不必等打字才觸發，見 ollama-chat.js openProjectPicker） ===== */
+.project-picker {
+  display: none;
+  position: fixed;
+  z-index: 3000;
+  margin: 0;
+  padding: 4px 0;
+  max-height: 180px;
+  overflow-y: auto;
+  list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .3);
+}
+
+.project-picker.open {
+  display: block;
+}
+
+.project-picker li {
+  padding: 8px 14px;
+  font-size: .88rem;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.project-picker li:hover {
+  background: rgba(127, 127, 127, 0.14);
+}

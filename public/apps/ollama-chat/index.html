@@ -144,9 +144,8 @@
     <div class="modal-content">
       <h5 id="new-modal-title" data-i18n="modal.title">新對話</h5>
       <div class="input-field">
-        <input id="new-project" type="text" list="project-datalist" maxlength="255" />
+        <input id="new-project" type="text" maxlength="255" autocomplete="off" />
         <label for="new-project" data-i18n="modal.project">Project（資料夾）</label>
-        <datalist id="project-datalist"></datalist>
       </div>
       <div class="input-field">
         <input id="new-subject" type="text" maxlength="80" />
@@ -159,6 +158,11 @@
       <a href="#!" id="new-create" class="btn-flat" data-i18n="modal.create">建立</a>
     </div>
   </div>
+
+  <!-- Project 下拉挑選面板：故意放在 modal 外層當 body 級浮動元素（非 .project-field 的子節點）——
+       Materialize .modal 有 overflow-y:auto + will-change，巢狀在裡面的 position:absolute/fixed
+       下拉常被裁掉；改成 body 級、JS 依 input 位置算 position:fixed 座標，見 ollama-chat.js。 -->
+  <ul id="project-picker" class="project-picker"></ul>
 
   <!-- ===== 右側工具列（flex 容器自動堆疊，見家族 §5.5） ===== -->
   <div class="side-tools">

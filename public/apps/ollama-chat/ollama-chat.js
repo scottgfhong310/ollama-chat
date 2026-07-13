@@ -210,7 +210,6 @@
     return L.getTree().then(function (projects) {
       state.tree = projects;
       renderTree();
-      fillProjectDatalist();
     }).catch(function (err) {
       M.toast({ html: I18n.t('toast.treeFail', { m: err.message }), classes: 'red' });
     });
@@ -265,11 +264,37 @@
     });
   }
 
-  function fillProjectDatalist() {
-    var dl = document.getElementById('project-datalist');
-    dl.innerHTML = state.tree.map(function (p) {
-      return '<option value="' + _.escape(p.name) + '"></option>';
+  /* ---------- 新對話／改名 modal：Project 欄位下拉挑選 ----------
+     手刻小面板取代瀏覽器原生 <datalist>——datalist 的彈出層在 Materialize modal
+     （overflow-y:auto + will-change）裡常被裁掉或整個不出現，改成 body 級浮動元素
+     （見 index.html #project-picker），position:fixed 座標由 JS 依 input 位置計算，
+     完全跳出 modal 的 overflow/containing-block 問題。focus／輸入就開，不必等打字
+     才觸發（這正是原生 datalist 的痛點：純點擊 focus 不會顯示建議清單）。 */
+
+  function projectPickerEl() { return document.getElementById('project-picker'); }
+
+  function openProjectPicker() {
+    var input = document.getElementById('new-project');
+    var q = input.value.trim().toLowerCase();
+    var names = state.tree.map(function (p) { return p.name; })
+      .filter(function (n) { return !q || n.toLowerCase().indexOf(q) !== -1; });
+    var picker = projectPickerEl();
+    if (!names.length) {
+      picker.classList.remove('open');
+      return;
+    }
+    picker.innerHTML = names.map(function (n) {
+      return '<li data-value="' + _.escape(n) + '">' + _.escape(n) + '</li>';
     }).join('');
+    var r = input.getBoundingClientRect();
+    picker.style.left = r.left + 'px';
+    picker.style.top = r.bottom + 'px';
+    picker.style.width = r.width + 'px';
+    picker.classList.add('open');
+  }
+
+  function closeProjectPicker() {
+    projectPickerEl().classList.remove('open');
   }
 
   // 該 project 下已存在的 subject 名（避免自動命名整檔覆寫掉既有對話）
@@ -697,6 +722,7 @@
     document.getElementById('new-project').value = state.project || DEFAULT_PROJECT;
     document.getElementById('new-subject').value = '';
     M.updateTextFields();
+    closeProjectPicker();
     M.Modal.getInstance(document.getElementById('new-modal')).open();
   }
 
@@ -714,6 +740,7 @@
     document.getElementById('new-project').value = project;
     document.getElementById('new-subject').value = name;
     M.updateTextFields();
+    closeProjectPicker();
     M.Modal.getInstance(document.getElementById('new-modal')).open();
   }
 
@@ -964,6 +991,22 @@
     document.getElementById('new-create').addEventListener('click', function (e) {
       e.preventDefault();   // <a href="#!">：不讓 hash 變化污染網址／觸發 popstate
       confirmModal();
+    });
+
+    // Project 欄位下拉挑選：focus／輸入就開（不必等打字才觸發，這是原生 datalist 的痛點）；
+    // blur 延遲關閉，讓下面 li 的 mousedown 有機會先跑完（mousedown 早於 blur，且 preventDefault
+    // 讓 input 不會提前失焦），否則點擊會因為 blur 先關閉面板而落空。
+    var projectInput = document.getElementById('new-project');
+    projectInput.addEventListener('focus', openProjectPicker);
+    projectInput.addEventListener('input', openProjectPicker);
+    projectInput.addEventListener('blur', function () {
+      setTimeout(closeProjectPicker, 150);
+    });
+    $(document).on('mousedown', '#project-picker li', function (e) {
+      e.preventDefault();
+      projectInput.value = $(this).attr('data-value');
+      M.updateTextFields();
+      closeProjectPicker();
     });
 
     // 上一頁／下一頁：優先看 ?uid=，沒有才退回舊格式 ?project=&subject=（相容舊分頁/書籤）。
