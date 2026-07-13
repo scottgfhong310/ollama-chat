@@ -256,7 +256,7 @@ router.post('/chat', async (req, res) => {
 
 const TITLE_SYSTEM_PROMPT =
   'You write short titles for chat conversations. Given the user\'s first message below, ' +
-  'reply with ONLY a concise title (3-6 words) in the same language as the message. ' +
+  'reply with ONLY a concise title (25 characters or fewer) in the same language as the message. ' +
   'No quotes, no markdown, no trailing punctuation, no explanation — output the title text only.';
 
 // 輕度清理：只做「小型本地模型常見不聽話」的保底處理（多話一行、包引號、掛 Title: 前綴、
