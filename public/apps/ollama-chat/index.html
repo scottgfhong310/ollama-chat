@@ -69,6 +69,10 @@
         <span id="crumb-sep" class="crumb-sep" style="display:none;">／</span>
         <strong id="crumb-subject" data-i18n="topbar.none">尚未選擇對話</strong>
       </div>
+      <!-- 端點切換器只在 .env 設了多個 OLLAMA_ENDPOINTS 時才顯示（單一端點沒得切，見控制器） -->
+      <div class="endpoint-box" id="endpoint-box" style="display:none;">
+        <select id="endpoint-select" data-i18n-title="topbar.endpoint" title="Ollama 端點"></select>
+      </div>
       <div class="model-box">
         <select id="model-select"></select>
       </div>

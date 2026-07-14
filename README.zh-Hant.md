@@ -1,6 +1,6 @@
 # ollama-chat
 
-> 版本 v1.5｜最後更新 2026-07-14
+> 版本 v1.6｜最後更新 2026-07-14
 
 [English](README.md) | [繁體中文] | [日本語](README.ja.md)
 
@@ -21,6 +21,7 @@ light/dark 主題。輕量 Express 後端（Ollama proxy＋對話存取）。
 - **Prompt 樣板庫**：全域跨對話的樣板清單（單檔 `prompts.json`）——把目前輸入存成樣板、點樣板插入輸入框游標處、刪除有備份。
 - **自動命名**：沒開 subject 直接輸入，會以第一句自動命名、存進 `inbox`。「新對話」對話框的 Subject 欄也可留空——送出第一則訊息後，由 Ollama 在背景生成一句短標題並自動改名。
 - **全域 system prompt（輸出格式）**：側鍵可編輯一段全域系統提示，每次對話送出前 prepend 給 Ollama——預設就要求回覆「開頭 `# 標題`、結尾 `#### Key words` 與 `#### Tags`」。可隨時改內容或清空停用（本機小模型盡量遵守、非保證）。
+- **多端點切換**：在 `.env` 設好多個 Ollama 端點（`OLLAMA_ENDPOINTS`，例如本機 demo 與 LAN 上的機器），頂部就會出現一個切換器，執行時即可切換、模型清單跟著換、選擇會記住。網址只在 `.env` 定義（前端只能選、不能指定任意網址）；只設一個端點時切換器自動隱藏。
 - **Markdown 回覆**：fenced code 附複製鈕；資料內容永不翻譯、不改寫。
 - **改名／搬移**：側鍵改 subject 標題或搬到別的 project（名稱即路徑；目標已存在則拒絕、不覆蓋）。
 - **匯出**：任一 subject 匯出成 Markdown（`<subject>-yyyyMMddHHmmss.md`）。
@@ -69,7 +70,9 @@ public/upload/ollama-chat/chats/    # 對話內容（不進版控）
 | GET | `/api/ollama-chat/prompts` | 讀樣板庫 → `{ ok, prompts }` |
 | POST | `/api/ollama-chat/prompts` | `{ prompts: [...] }`——整清單覆寫（覆寫前先備份舊檔） |
 | GET | `/api/ollama-chat/settings` | 讀全域設定 → `{ ok, settings: { systemPrompt } }`（無檔回預設格式指示） |
-| POST | `/api/ollama-chat/settings` | `{ systemPrompt }`——覆寫（覆寫前先備份；空字串＝停用） |
+| POST | `/api/ollama-chat/settings` | `{ systemPrompt }`——只更新這欄（覆寫前先備份；空字串＝停用） |
+| GET | `/api/ollama-chat/endpoints` | Ollama 端點清單（`.env` 白名單）＋目前生效 → `{ ok, endpoints, current }` |
+| POST | `/api/ollama-chat/endpoint` | `{ url }`——切換端點（只收白名單內 url，否則 400） |
 
 除成功的 `/chat` 串流（原樣直通 Ollama 的 NDJSON）外，所有端點皆用家族 `{ ok }` 信封。
 

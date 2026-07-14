@@ -1,6 +1,6 @@
 # ollama-chat
 
-> 版本 v1.5｜最後更新 2026-07-14
+> 版本 v1.6｜最後更新 2026-07-14
 
 [English] | [繁體中文](README.zh-Hant.md) | [日本語](README.ja.md)
 
@@ -21,6 +21,7 @@ Not compatible with GitHub Pages (requires the Node backend).
 - **Prompt templates**: a global, cross-conversation template library (single `prompts.json`); save the current input as a template, click a template to insert it at the input cursor, delete with backup.
 - **Auto-naming**: typing without opening a subject creates one named from your first prompt, stored under `inbox`. In the "New chat" dialog, the Subject field can also be left blank — once you send the first message, Ollama generates a short title in the background and the conversation is renamed to it.
 - **Global system prompt (output format)**: edit one global system prompt from the side rail; it's prepended to Ollama on every message — the default asks replies to start with a `# title` and end with `#### Key words` and `#### Tags` sections. Edit or clear it anytime (local small models follow it best-effort, not guaranteed).
+- **Multiple Ollama endpoints**: define several endpoints in `.env` (`OLLAMA_ENDPOINTS`, e.g. a local demo and a LAN box) and a switcher appears in the top bar — switch at runtime, the model list reloads for the chosen endpoint, and the choice is remembered. URLs live only in `.env` (the browser can only pick, never point the proxy at an arbitrary URL); the switcher hides itself when only one endpoint is configured.
 - **Markdown replies** with fenced-code copy buttons; user content is never translated or altered.
 - **Rename / move**: retitle a subject or move it to another project from the side rail (name = path; refuses to overwrite an existing target).
 - **Export** any subject as Markdown (`<subject>-yyyyMMddHHmmss.md`).
@@ -69,7 +70,9 @@ public/upload/ollama-chat/chats/    # conversations (not committed)
 | GET | `/api/ollama-chat/prompts` | Read the template library → `{ ok, prompts }` |
 | POST | `/api/ollama-chat/prompts` | `{ prompts: [...] }` — overwrite the whole list (backs up the old file first) |
 | GET | `/api/ollama-chat/settings` | Read global settings → `{ ok, settings: { systemPrompt } }` (default format prompt if no file) |
-| POST | `/api/ollama-chat/settings` | `{ systemPrompt }` — overwrite (backs up first; empty string = disabled) |
+| POST | `/api/ollama-chat/settings` | `{ systemPrompt }` — update just this field (backs up first; empty string = disabled) |
+| GET | `/api/ollama-chat/endpoints` | Ollama endpoint list (`.env` allowlist) + current → `{ ok, endpoints, current }` |
+| POST | `/api/ollama-chat/endpoint` | `{ url }` — switch endpoint (allowlisted urls only, else 400) |
 
 All endpoints use the family `{ ok }` envelope except the successful `/chat` stream,
 which passes Ollama's NDJSON chunks through verbatim.

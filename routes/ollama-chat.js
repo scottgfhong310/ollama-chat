@@ -36,10 +36,15 @@
  *   GET  /api/ollama-chat/prompts   → { ok, prompts: [{ content, ts, title? }] }
  *   POST /api/ollama-chat/prompts   → { prompts: [...] } 整清單覆寫（覆寫前 .bak）
  *
- * 全域設定（單檔 settings.json）：
+ * 全域設定（單檔 settings.json；systemPrompt 與 ollamaBaseUrl 共存、各端點 merge 寫入）：
  *   GET  /api/ollama-chat/settings  → { ok, settings: { systemPrompt } }（無檔回預設格式指示）
- *   POST /api/ollama-chat/settings  → { systemPrompt } 覆寫（覆寫前 .bak；空字串＝停用）
+ *   POST /api/ollama-chat/settings  → { systemPrompt } 只更新這欄（覆寫前 .bak；空字串＝停用）
  *   systemPrompt 由前端在每次對話送出前 prepend 成 role:'system' 訊息給 Ollama（不落地進 turn）
+ *
+ * Ollama 端點切換（清單來自 .env 的 OLLAMA_ENDPOINTS 白名單，＋OLLAMA_BASE_URL 預設）：
+ *   GET  /api/ollama-chat/endpoints → { ok, endpoints:[{label,url}], current }
+ *   POST /api/ollama-chat/endpoint  → { url } 切換（只收白名單內 url；存 settings.json.ollamaBaseUrl）
+ *   /models、/chat、/title 走 resolveOllamaBase()——讀選擇、驗證在白名單內才用、否則回退預設
  *
  * 資料模型（v2，request-response 結構；見 lib 檔頭與 DESIGN.md §1）：
  *   chat.messages[] 一筆＝一個 turn = { uid, serial, role:'user', content, ts, hidden?, response }
@@ -99,8 +104,39 @@ const DEFAULT_SYSTEM_PROMPT = [
 ].join('\n');
 
 // Ollama base URL：讀取時才取值（.env 由 app.js 載入）
-function ollamaBase() {
+// 預設/後備 Ollama 位址（沿用 OLLAMA_BASE_URL）
+function ollamaDefaultBase() {
   return (process.env.OLLAMA_BASE_URL || 'http://localhost:11434').replace(/\/+$/, '');
+}
+
+// 可切換的端點「白名單」——只來自 .env 的 OLLAMA_ENDPOINTS（格式：`標籤|網址` 逗號分隔），
+// 外加 OLLAMA_BASE_URL 這個預設一定在列。網址只在伺服器端定義，前端只能「選」不能指定任意
+// 網址 → 不會變成「瀏覽器叫 server proxy 到任意位址」的 SSRF 洞。回傳 [{ label, url }]。
+function ollamaEndpoints() {
+  const def = ollamaDefaultBase();
+  const list = [];
+  (process.env.OLLAMA_ENDPOINTS || '').split(',').forEach((pair) => {
+    const i = pair.indexOf('|');
+    if (i === -1) return;
+    const label = pair.slice(0, i).trim();
+    const url = pair.slice(i + 1).trim().replace(/\/+$/, '');
+    if (label && url) list.push({ label, url });
+  });
+  if (!list.some((e) => e.url === def)) list.unshift({ label: def, url: def });
+  return list;
+}
+
+// 目前生效的 Ollama base：讀 settings.json 的選擇，「驗證在白名單內」才用，否則回退預設。
+// async——每次 proxy 前呼叫（讀一次小檔可接受；也確保剛切換就即時生效）。
+async function resolveOllamaBase() {
+  try {
+    const s = JSON.parse(await fs.readFile(SETTINGS_FILE, 'utf8'));
+    if (typeof s.ollamaBaseUrl === 'string') {
+      const picked = s.ollamaBaseUrl.replace(/\/+$/, '');
+      if (ollamaEndpoints().some((e) => e.url === picked)) return picked;
+    }
+  } catch (e) { /* 無檔／壞檔／不在白名單 → 回退 */ }
+  return ollamaDefaultBase();
 }
 
 /* ---------- 工具 ---------- */
@@ -283,7 +319,7 @@ function projectDir(name) {
 // GET /api/ollama-chat/models — 轉 Ollama /api/tags
 router.get('/models', async (req, res) => {
   try {
-    const r = await fetch(ollamaBase() + '/api/tags');
+    const r = await fetch(await resolveOllamaBase() + '/api/tags');
     if (!r.ok) throw new Error('Ollama HTTP ' + r.status);
     const d = await r.json();
     const models = (d.models || []).map(m => ({
@@ -313,7 +349,7 @@ router.post('/chat', async (req, res) => {
 
   let upstream;
   try {
-    upstream = await fetch(ollamaBase() + '/api/chat', {
+    upstream = await fetch(await resolveOllamaBase() + '/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -382,7 +418,7 @@ router.post('/title', async (req, res) => {
   const timer = setTimeout(() => ac.abort(), 45000);
 
   try {
-    const upstream = await fetch(ollamaBase() + '/api/chat', {
+    const upstream = await fetch(await resolveOllamaBase() + '/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -681,40 +717,76 @@ router.post('/prompts', async (req, res) => {
   }
 });
 
-/* ---------- 全域設定（system prompt） ---------- */
+/* ---------- 全域設定（system prompt、Ollama 端點選擇） ---------- */
+
+// settings.json 讀原始物件（無檔／壞檔回 {}）
+async function readSettingsRaw() {
+  try { return JSON.parse(await fs.readFile(SETTINGS_FILE, 'utf8')); } catch (e) { return {}; }
+}
+
+// merge 寫入（讀現況 → 套 patch → 覆寫前 .bak）——多個端點各改自己那欄不互相覆蓋
+async function writeSettingsMerged(patch) {
+  const next = Object.assign({}, await readSettingsRaw(), patch);
+  await fs.mkdir(UPLOAD_ROOT, { recursive: true });
+  try {
+    await fs.access(SETTINGS_FILE);
+    await fs.mkdir(ROOT_BAK, { recursive: true });
+    await fs.copyFile(SETTINGS_FILE, path.join(ROOT_BAK, 'settings-' + timestamp() + '.json.bak'));
+  } catch (e) { /* 首寫尚無檔，免備份 */ }
+  await fs.writeFile(SETTINGS_FILE, JSON.stringify(next, null, 2) + '\n', 'utf8');
+  return next;
+}
 
 // GET /api/ollama-chat/settings — 讀全域設定（無檔＝回預設 systemPrompt，讓格式指示「開箱即用」）
 router.get('/settings', async (req, res) => {
   try {
-    const j = JSON.parse(await fs.readFile(SETTINGS_FILE, 'utf8'));
+    const j = await readSettingsRaw();
     const systemPrompt = typeof j.systemPrompt === 'string' ? j.systemPrompt : DEFAULT_SYSTEM_PROMPT;
     return res.json({ ok: true, settings: { systemPrompt } });
   } catch (err) {
-    if (err.code === 'ENOENT') return res.json({ ok: true, settings: { systemPrompt: DEFAULT_SYSTEM_PROMPT } });
     console.error('[ollama-chat] GET /settings failed:', err);
     return res.status(500).json({ ok: false, error: err.message });
   }
 });
 
-// POST /api/ollama-chat/settings — 整檔覆寫（owner registry 式；覆寫前 .bak）。
+// POST /api/ollama-chat/settings — 只更新 systemPrompt（merge，不動 ollamaBaseUrl）。
 // systemPrompt 允許空字串（＝停用格式指示，不 prepend 任何 system 訊息）。
 router.post('/settings', async (req, res) => {
   const raw = (req.body || {}).systemPrompt;
   if (typeof raw !== 'string' || raw.length > SYSTEM_PROMPT_MAX) {
     return res.status(400).json({ ok: false, error: 'invalid systemPrompt' });
   }
-  const systemPrompt = raw;
   try {
-    await fs.mkdir(UPLOAD_ROOT, { recursive: true });
-    try {
-      await fs.access(SETTINGS_FILE);
-      await fs.mkdir(ROOT_BAK, { recursive: true });
-      await fs.copyFile(SETTINGS_FILE, path.join(ROOT_BAK, 'settings-' + timestamp() + '.json.bak'));
-    } catch (e) { /* 首寫尚無檔，免備份 */ }
-    await fs.writeFile(SETTINGS_FILE, JSON.stringify({ systemPrompt }, null, 2) + '\n', 'utf8');
-    return res.json({ ok: true, settings: { systemPrompt } });
+    await writeSettingsMerged({ systemPrompt: raw });
+    return res.json({ ok: true, settings: { systemPrompt: raw } });
   } catch (err) {
     console.error('[ollama-chat] POST /settings failed:', err);
+    return res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// GET /api/ollama-chat/endpoints — 可切換的 Ollama 端點清單（來自 .env 白名單）＋目前生效的
+router.get('/endpoints', async (req, res) => {
+  try {
+    return res.json({ ok: true, endpoints: ollamaEndpoints(), current: await resolveOllamaBase() });
+  } catch (err) {
+    console.error('[ollama-chat] GET /endpoints failed:', err);
+    return res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// POST /api/ollama-chat/endpoint — 切換目前的 Ollama 端點（存 settings.json.ollamaBaseUrl）。
+// 只接受「白名單內」的 url——網址本身來自 .env，前端只是選一個，杜絕任意 URL proxy。
+router.post('/endpoint', async (req, res) => {
+  const url = String((req.body || {}).url || '').replace(/\/+$/, '');
+  if (!ollamaEndpoints().some((e) => e.url === url)) {
+    return res.status(400).json({ ok: false, error: 'unknown endpoint' });
+  }
+  try {
+    await writeSettingsMerged({ ollamaBaseUrl: url });
+    return res.json({ ok: true, current: url });
+  } catch (err) {
+    console.error('[ollama-chat] POST /endpoint failed:', err);
     return res.status(500).json({ ok: false, error: err.message });
   }
 });

@@ -1,6 +1,6 @@
 # ollama-chat — 設計決議（為什麼長這樣）
 
-> 版本 v1.8｜最後更新 2026-07-14
+> 版本 v1.9｜最後更新 2026-07-14
 
 「怎麼用」見 [README](./README.zh-Hant.md)；家族共同規範見
 [nodeapp-webapp-family](https://github.com/scottgfhong310/nodeapp-webapp-family)（此處只記本 app 特有的取捨）。
@@ -124,6 +124,22 @@ v1 是扁平陣列、`role` user/assistant 交替；v2 引入後**只在 `GET /s
   失敗（連不上、upstream 4xx/5xx、參數不合法）仍回標準 `{ ok:false, error }`。
 - **中止鏈**：前端 AbortController → fetch 斷線 → 後端 `res.on('close')` 察覺未寫完 →
   abort upstream fetch → Ollama 停止產生。按「停止」不浪費 GPU 時間；部分內容保留並存檔。
+
+### 2.1 多端點切換（本機 demo ↔ LAN，執行時切）
+
+單一 `OLLAMA_BASE_URL` 是「一個 server 一個固定位址」；要在同一個 app 執行時切換不同 Ollama
+（例如 `localhost:11434` demo ↔ LAN 上的 Mac mini），加一層：
+
+- **清單只來自 `.env`（伺服器端白名單）**：`OLLAMA_ENDPOINTS`＝`標籤|網址` 逗號分隔，外加
+  `OLLAMA_BASE_URL` 這個預設一定在列。**關鍵：網址只在伺服器端定義，前端只能「選」不能指定
+  任意網址**——否則就變成「網頁能叫 server 去 proxy 任意位址」的 SSRF 洞（本機單人工具風險低，
+  但這是該守的界線）。`POST /endpoint` 只接受白名單內的 url，否則 400。
+- **選擇存 `settings.json`**（與 systemPrompt 同一個面，各欄 merge 寫入不互相覆蓋）；`ollamaBase()`
+  改成 async `resolveOllamaBase()`——讀選擇、**再驗證仍在白名單內**才用、否則回退 `OLLAMA_BASE_URL`
+  （白名單事後縮減、settings 殘留舊值時不會炸）。`/models`、`/chat`、`/title` 都走它。
+- **前端切換器只在「有多個端點」時顯示**（單一端點沒得切，`loadEndpoints` 判斷 `< 2` 就藏起來）
+  ——所以沒設 `OLLAMA_ENDPOINTS` 的環境完全無感、行為與從前一致。切換後**重載模型清單**（不同端點
+  模型不同），選擇持久（下次開啟記得）。
 
 ## 3. .bak 策略（對家族 canon 的有意偏離）
 

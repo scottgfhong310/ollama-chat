@@ -367,15 +367,23 @@ body.tree-closed #tree-pane {
   width: 230px;
 }
 
-/* Materialize select 在 topbar 內收斂高度（只調間距，不動其視覺語言） */
-.model-box .select-wrapper input.select-dropdown {
+/* 端點切換器：比模型選單窄一些，只在有多個 .env 端點時顯示（見控制器 loadEndpoints） */
+.endpoint-box {
+  flex: 0 0 auto;
+  width: 150px;
+}
+
+/* Materialize select 在 topbar 內收斂高度（只調間距，不動其視覺語言）；端點與模型選單共用 */
+.model-box .select-wrapper input.select-dropdown,
+.endpoint-box .select-wrapper input.select-dropdown {
   margin: 0;
   height: 2.4rem;
   line-height: 2.4rem;
   font-size: .9rem;
 }
 
-.model-box .select-wrapper .caret {
+.model-box .select-wrapper .caret,
+.endpoint-box .select-wrapper .caret {
   top: 4px;
 }
 

@@ -46,6 +46,8 @@
  *   OllamaChatLib.PROJECT_NAME_MAX               → 255         project 名稱長度上限（macOS 路徑片段實際上限）
  *   OllamaChatLib.uniqueName(name, taken)       → string      與既有清單衝突時加 -2、-3…
  *   OllamaChatLib.listModels()                  → Promise<Array<{name,size,modifiedAt}>>
+ *   OllamaChatLib.getEndpoints()                → Promise<{endpoints:[{label,url}], current}>  Ollama 端點清單
+ *   OllamaChatLib.setEndpoint(url)              → Promise<string>  切換端點（回 current；白名單外 reject）
  *   OllamaChatLib.chatStream({model,messages,signal,onChunk}) → Promise<{content,stats,aborted}>
  *   OllamaChatLib.generateTitle({model,prompt}) → Promise<string>  非串流，依首個 prompt 生短標題
  *                                                  （新對話 Subject 留空時用；20s 逾時／失敗皆 reject）
@@ -86,6 +88,8 @@
   var PROMPTS_API = API_BASE + '/prompts';
   var PROJECT_API = API_BASE + '/project';
   var SETTINGS_API = API_BASE + '/settings';
+  var ENDPOINTS_API = API_BASE + '/endpoints';
+  var ENDPOINT_API = API_BASE + '/endpoint';
 
   /* ---------- 工具 ---------- */
 
@@ -236,6 +240,17 @@
   function listModels() {
     return jsonApi(bust(MODELS_API), { cache: 'no-store' })
       .then(function (d) { return d.models || []; });
+  }
+
+  // Ollama 端點清單（.env 白名單）＋目前生效的：{ endpoints:[{label,url}], current }
+  function getEndpoints() {
+    return jsonApi(bust(ENDPOINTS_API), { cache: 'no-store' })
+      .then(function (d) { return { endpoints: d.endpoints || [], current: d.current || '' }; });
+  }
+
+  // 切換端點（url 必須是白名單內；後端存 settings.json）。切換後模型清單會不同，呼叫端要重載。
+  function setEndpoint(url) {
+    return postJson(ENDPOINT_API, { url: url }).then(function (d) { return d.current; });
   }
 
   function getTree() {
@@ -460,6 +475,8 @@
     PROJECT_NAME_MAX: PROJECT_NAME_MAX,
     uniqueName: uniqueName,
     listModels: listModels,
+    getEndpoints: getEndpoints,
+    setEndpoint: setEndpoint,
     chatStream: chatStream,
     generateTitle: generateTitle,
     getTree: getTree,

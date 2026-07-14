@@ -553,6 +553,33 @@
     });
   }
 
+  /* ---------- Ollama 端點切換（頂部；清單來自 .env 白名單） ---------- */
+
+  // 只在有「多個」端點時才顯示切換器（單一端點沒得切）。切換後重載模型清單（不同端點模型不同）。
+  function loadEndpoints() {
+    return L.getEndpoints().then(function (d) {
+      var box = document.getElementById('endpoint-box');
+      var sel = document.getElementById('endpoint-select');
+      if (!d.endpoints.length || d.endpoints.length < 2) { box.style.display = 'none'; return; }
+      sel.innerHTML = d.endpoints.map(function (e) {
+        return '<option value="' + _.escape(e.url) + '"' + (e.url === d.current ? ' selected' : '') + '>' +
+          _.escape(e.label) + '</option>';
+      }).join('');
+      box.style.display = '';
+      M.FormSelect.init(sel);
+    }).catch(function () { /* 端點清單讀不到就當單一端點，不擋主流程 */ });
+  }
+
+  function onEndpointChange() {
+    var url = document.getElementById('endpoint-select').value;
+    L.setEndpoint(url).then(function () {
+      M.toast({ html: I18n.t('toast.endpointSwitched'), classes: 'teal' });
+      return loadModels();   // 端點換了，模型清單跟著重載
+    }).catch(function (err) {
+      M.toast({ html: I18n.t('toast.endpointFail', { m: err.message }), classes: 'red' });
+    });
+  }
+
   /* ---------- prompt 清單（右側 sidenav） ---------- */
 
   var showHiddenPrompts = false;   // 是否展開已隱藏的 prompt（僅記憶體、每 session）
@@ -1069,6 +1096,8 @@
       setModel(modelSelect.value);
       if (state.chat) state.chat.model = state.model;   // 下次存檔帶上
     });
+    // Ollama 端點切換
+    document.getElementById('endpoint-select').addEventListener('change', onEndpointChange);
 
     // 右側工具列
     document.getElementById('setting-menu').addEventListener('click', function () {
@@ -1191,6 +1220,7 @@
     });
     loadTemplates();
     loadSettings();
+    loadEndpoints();
 
     inputEl.focus();
   });

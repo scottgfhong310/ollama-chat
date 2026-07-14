@@ -1,6 +1,6 @@
 # ollama-chat — Session context
 
-> 版本 v1.7｜最後更新 2026-07-14
+> 版本 v1.8｜最後更新 2026-07-14
 
 本地 **Ollama** 模型的全版面 Web 聊天介面：**project（資料夾，一級公民＝可建立/改名/刪除、帶穩定
 `uid`；`inbox`＝未歸類收容處）→ subject（一組對話＝一個 JSON 檔，帶穩定 `uid`）→ turn（request-response
@@ -32,8 +32,8 @@ public/apps/ollama-chat/            # 前端（服務於 /apps/ollama-chat/）
 │                                   #   與 favicon 版 favicon(-light).svg（放大標記，分頁小尺寸用）＋favicon.ico／png／manifest.json（相對路徑）
 public/upload/ollama-chat/chats/    # 對話內容：<project>/<subject>.json（不進版控）；.bak/ 收刪除備份
 public/upload/ollama-chat/prompts.json  # Prompt 樣板庫（全域單檔，不進版控）；備份在 ../.bak/
-public/upload/ollama-chat/settings.json # 全域設定（systemPrompt；不進版控）；備份在 ../.bak/
-.env（.env.example）                # OLLAMA_BASE_URL（預設 http://localhost:11434）、PORT
+public/upload/ollama-chat/settings.json # 全域設定（systemPrompt＋ollamaBaseUrl；不進版控）；備份 ../.bak/
+.env（.env.example）                # OLLAMA_BASE_URL（預設）、OLLAMA_ENDPOINTS（選填，端點切換白名單）、PORT
 ```
 
 ## 執行 / 驗證
@@ -124,6 +124,12 @@ npm install && node app.js          # → http://localhost:3000/apps/ollama-chat
   （只在送出時組裝、**不落地進 turn**；後端 `/chat` 仍純 proxy）。`GET /settings` 無檔時回**預設格式指示**
   （`# 標題`＋`#### Key words`＋`#### Tags`，開箱即用；GET 不寫檔）；**空字串＝停用**。與 §5.1 自動命名
   的 `/title` system prompt 各自獨立。本機小模型盡量遵守、非保證。詳見 DESIGN.md §5.6。
+- **Ollama 端點切換（頂部 model 選單旁）**：`.env` 的 `OLLAMA_ENDPOINTS`（`標籤|網址` 逗號分隔，
+  ＋`OLLAMA_BASE_URL` 預設）定義**伺服器端白名單**；`GET /endpoints` 回清單＋current，`POST /endpoint`
+  只收白名單內 url（否則 400，杜絕任意 URL proxy）、存 `settings.json.ollamaBaseUrl`。`ollamaBase()`
+  改成 async `resolveOllamaBase()`——讀選擇、驗證仍在白名單內才用、否則回退預設；`/models`/`/chat`/`/title`
+  都走它。前端 `#endpoint-select` **只在有多個端點時顯示**（單一端點藏起來、行為與從前一致），
+  切換後重載模型清單、選擇持久。詳見 DESIGN.md §2.1。
 - **subject 列內動作（改名／刪除）**：左欄每列尾端 `more_vert`（hover 現身、觸控恆顯）展開
   `edit`／`delete` 兩鍵（一次只展一列、`stopPropagation` 不觸發開啟）——**動作對象＝該列**，
   不必先開啟該 subject；改名走與「新對話」共用 modal 的 rename 模式（`renameTarget` 記對象），
