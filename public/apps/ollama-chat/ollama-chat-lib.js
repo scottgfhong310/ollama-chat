@@ -60,6 +60,9 @@
  *   OllamaChatLib.deleteProject(name)           → Promise<{name}>       整夾搬 .bak（inbox 保護；破壞性）
  *   OllamaChatLib.getPrompts()                  → Promise<Array<{content,ts,title?}>>  樣板庫
  *   OllamaChatLib.savePrompts(prompts)          → Promise<{count}>  整清單覆寫
+ *   OllamaChatLib.getSettings()                 → Promise<{systemPrompt}>  全域設定（無檔回預設格式指示）
+ *   OllamaChatLib.saveSettings(systemPrompt)    → Promise<{settings}>      覆寫（空字串＝停用）
+ *   OllamaChatLib.withSystemPrompt(messages, systemPrompt) → [{role,content}]  flattenForApi＋前置 system
  *   OllamaChatLib.promptTitle(p)                → string  樣板顯示名（title 或內容首行）
  *   OllamaChatLib.exportMarkdown(project, name, chat) → string
  *   OllamaChatLib.downloadText(name, text)      → void        Blob → <a download>
@@ -82,6 +85,7 @@
   var RENAME_API = API_BASE + '/rename';
   var PROMPTS_API = API_BASE + '/prompts';
   var PROJECT_API = API_BASE + '/project';
+  var SETTINGS_API = API_BASE + '/settings';
 
   /* ---------- 工具 ---------- */
 
@@ -296,6 +300,29 @@
     return postJson(PROMPTS_API, { prompts: prompts });
   }
 
+  /* ---------- 全域設定（system prompt） ---------- */
+
+  // 回傳 { systemPrompt }；無檔時後端給預設格式指示（開箱即用）。
+  function getSettings() {
+    return jsonApi(bust(SETTINGS_API), { cache: 'no-store' })
+      .then(function (d) { return d.settings || { systemPrompt: '' }; });
+  }
+
+  // 覆寫全域 systemPrompt（空字串＝停用格式指示）。
+  function saveSettings(systemPrompt) {
+    return postJson(SETTINGS_API, { systemPrompt: systemPrompt });
+  }
+
+  // 把全域 systemPrompt（非空時）prepend 成 role:'system' 訊息，接在 flattenForApi 之前。
+  // 純送出時組裝、不落地進 turn（與 flattenForApi 同精神）。
+  function withSystemPrompt(messages, systemPrompt) {
+    var flat = flattenForApi(messages);
+    if (systemPrompt && systemPrompt.trim()) {
+      flat.unshift({ role: 'system', content: systemPrompt });
+    }
+    return flat;
+  }
+
   // 樣板顯示名：title 優先，否則取內容首行（截 60 字）
   function promptTitle(p) {
     if (p && typeof p.title === 'string' && p.title.trim()) return p.title.trim();
@@ -446,6 +473,9 @@
     deleteProject: deleteProject,
     getPrompts: getPrompts,
     savePrompts: savePrompts,
+    getSettings: getSettings,
+    saveSettings: saveSettings,
+    withSystemPrompt: withSystemPrompt,
     promptTitle: promptTitle,
     exportMarkdown: exportMarkdown,
     downloadText: downloadText,

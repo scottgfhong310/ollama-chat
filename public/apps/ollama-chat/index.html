@@ -178,6 +178,22 @@
     </div>
   </div>
 
+  <!-- ===== 系統提示 Modal（全域 system prompt；每次對話送出前 prepend 給 Ollama） ===== -->
+  <div id="system-modal" class="modal">
+    <div class="modal-content">
+      <h5 data-i18n="system.title">系統提示（輸出格式）</h5>
+      <p class="system-hint" data-i18n="system.hint">每則對話送出前會把這段話當成 system 提示送給 Ollama，用來要求固定的輸出格式（例如標題、關鍵字、標籤）。清空＝停用。本機小模型為盡量遵守、非保證。</p>
+      <div class="input-field">
+        <textarea id="system-prompt-text" class="materialize-textarea" maxlength="4000"></textarea>
+        <label for="system-prompt-text" data-i18n="system.label">System prompt</label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <a href="#!" class="modal-close btn-flat" data-i18n="modal.cancel">取消</a>
+      <a href="#!" id="system-save" class="btn-flat" data-i18n="modal.save">儲存</a>
+    </div>
+  </div>
+
   <!-- ===== 右側工具列（flex 容器自動堆疊，見家族 §5.5） ===== -->
   <div class="side-tools">
     <!-- App icon 徽章（家族 §5.5 甲）：用完整 tile 取代 folder_open，兼作對話庫開合鈕與品牌識別 -->
@@ -190,6 +206,9 @@
     </div>
     <div id="setting-new" class="side-tool" data-i18n-title="tool.new" title="新對話">
       <i class="material-icons">add_comment</i>
+    </div>
+    <div id="setting-system" class="side-tool" data-i18n-title="tool.system" title="系統提示（輸出格式）">
+      <i class="material-icons">psychology</i>
     </div>
     <div id="setting-download" class="side-tool" data-i18n-title="tool.download" title="匯出 Markdown" style="display:none;">
       <i class="material-icons">file_download</i>

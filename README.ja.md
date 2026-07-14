@@ -1,6 +1,6 @@
 # ollama-chat
 
-> 版本 v1.4｜最後更新 2026-07-13
+> 版本 v1.5｜最後更新 2026-07-14
 
 [English](README.md) | [繁體中文](README.zh-Hant.md) | [日本語]
 
@@ -20,6 +20,7 @@ GitHub Pages には非対応（Node バックエンドが必要）。
 - **プロンプト索引**：subject 内のすべてのユーザー発言をスライドインパネルに一覧表示；クリックでそのやり取りへスクロール。
 - **プロンプトのテンプレート**：会話をまたぐグローバルなテンプレート集（単一の `prompts.json`）——現在の入力を保存、クリックで入力欄のカーソル位置に挿入、削除はバックアップ付き。
 - **自動命名**：subject を開かずに入力すると、最初の一文から命名され `inbox` に保存。「新しい会話」ダイアログの Subject 欄も空欄のままでよく、最初のメッセージ送信後に Ollama がバックグラウンドで短いタイトルを生成し、自動的に改名される。
+- **グローバル system prompt（出力フォーマット）**：サイドレールから編集できるグローバルなシステムプロンプトを、各メッセージ送信前に Ollama へ前置——既定で「冒頭 `# 見出し`、末尾に `#### Key words` と `#### Tags`」を要求。いつでも編集・空欄で無効化可（ローカル小型モデルはできる限り従うが保証なし）。
 - **Markdown 返信**：fenced code にコピーボタン付き；データ内容は翻訳・改変しない。
 - **名前変更／移動**：サイドレールから subject の改名や別 project への移動（名前＝パス；移動先が既存の場合は拒否、上書きしない）。
 - **エクスポート**：任意の subject を Markdown（`<subject>-yyyyMMddHHmmss.md`）に。
@@ -67,6 +68,8 @@ public/upload/ollama-chat/chats/    # 会話データ（コミットしない）
 | POST | `/api/ollama-chat/project/delete` | `{ name }`——project 全体を `chats/.bak/` へ移動（inbox 保護） |
 | GET | `/api/ollama-chat/prompts` | テンプレート集を読む → `{ ok, prompts }` |
 | POST | `/api/ollama-chat/prompts` | `{ prompts: [...] }`——リスト全体を上書き（上書き前に旧ファイルをバックアップ） |
+| GET | `/api/ollama-chat/settings` | グローバル設定を読む → `{ ok, settings: { systemPrompt } }`（ファイルなしなら既定のフォーマット指示） |
+| POST | `/api/ollama-chat/settings` | `{ systemPrompt }`——上書き（上書き前にバックアップ；空文字＝無効） |
 
 成功時の `/chat` ストリーム（Ollama の NDJSON をそのまま通す）を除き、
 すべてのエンドポイントはファミリー共通の `{ ok }` エンベロープを使用します。

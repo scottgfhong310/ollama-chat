@@ -509,8 +509,11 @@ body.is-empty .empty-state {
   padding-left: 1.6em;
 }
 
-.bubble.md ul { list-style-type: disc; }   /* Materialize 會拿掉 list-style，這裡要回來 */
-.bubble.md ul ul { list-style-type: circle; }
+/* Materialize 對 ul「與 li」都設了 list-style-type:none——項目符號由 li 決定，所以
+   兩層（尤其 li）都要蓋回，否則清單有縮排卻沒有點。ol 同理。 */
+.bubble.md ul, .bubble.md ul > li { list-style-type: disc; }
+.bubble.md ul ul, .bubble.md ul ul > li { list-style-type: circle; }
+.bubble.md ol, .bubble.md ol > li { list-style-type: decimal; }
 .bubble.md li { margin: .25em 0; }
 
 .bubble.md blockquote {
@@ -873,6 +876,18 @@ body.is-empty .empty-state {
   .model-box {
     width: 160px;
   }
+}
+
+/* ===== 系統提示 modal：說明文字＋較高的 textarea ===== */
+.system-hint {
+  color: var(--muted);
+  font-size: .82rem;
+  line-height: 1.6;
+  margin: 0 0 8px;
+}
+
+#system-prompt-text.materialize-textarea {
+  min-height: 8rem;
 }
 
 /* ===== 列印：只留對話內容 ===== */

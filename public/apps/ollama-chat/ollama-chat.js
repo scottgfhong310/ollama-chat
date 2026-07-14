@@ -37,6 +37,7 @@
     models: [],
     model: '',
     templates: [],   // prompt 樣板庫（全域單檔 prompts.json）
+    systemPrompt: '',   // 全域 system prompt（settings.json）；每次送出前 prepend 給 Ollama
     tree: [],
     project: null,   // 目前開啟的 project（資料夾名）
     subject: null,   // 目前開啟的 subject（檔名去 .json）
@@ -488,7 +489,8 @@
 
     L.chatStream({
       model: state.model,
-      messages: L.flattenForApi(state.chat.messages),
+      // 全域 system prompt（非空時）prepend 在最前，接著才是對話 turns（見 withSystemPrompt）
+      messages: L.withSystemPrompt(state.chat.messages, state.systemPrompt),
       signal: ctl.signal,
       onChunk: function (delta, full) {
         var now = Date.now();
@@ -648,6 +650,36 @@
     return L.savePrompts(state.templates).catch(function (err) {
       M.toast({ html: I18n.t('toast.tplSaveFail', { m: err.message }), classes: 'red' });
       return loadTemplates();   // 存失敗 → 回讀伺服器現況，避免畫面與檔案分歧
+    });
+  }
+
+  /* ---------- 全域 system prompt（輸出格式指示等） ---------- */
+
+  function loadSettings() {
+    return L.getSettings().then(function (s) {
+      state.systemPrompt = s.systemPrompt || '';
+    }).catch(function (err) {
+      M.toast({ html: I18n.t('toast.settingsLoadFail', { m: err.message }), classes: 'red' });
+    });
+  }
+
+  function openSystemModal() {
+    var ta = document.getElementById('system-prompt-text');
+    ta.value = state.systemPrompt;
+    M.updateTextFields();
+    M.Modal.getInstance(document.getElementById('system-modal')).open();
+    setTimeout(function () { M.textareaAutoResize(ta); }, 50);   // modal 開啟後才量得到高度
+  }
+
+  function saveSystemPrompt() {
+    var val = document.getElementById('system-prompt-text').value;
+    var modal = M.Modal.getInstance(document.getElementById('system-modal'));
+    L.saveSettings(val).then(function (d) {
+      state.systemPrompt = (d.settings && d.settings.systemPrompt) || '';
+      modal.close();
+      M.toast({ html: I18n.t('toast.settingsSaved'), classes: 'teal' });
+    }).catch(function (err) {
+      M.toast({ html: I18n.t('toast.settingsSaveFail', { m: err.message }), classes: 'red' });
     });
   }
 
@@ -1052,6 +1084,11 @@
       if (inst) inst.open();
     });
     document.getElementById('setting-new').addEventListener('click', openNewModal);
+    document.getElementById('setting-system').addEventListener('click', openSystemModal);
+    document.getElementById('system-save').addEventListener('click', function (e) {
+      e.preventDefault();
+      saveSystemPrompt();
+    });
     document.getElementById('setting-download').addEventListener('click', exportCurrent);
     document.getElementById('setting-mode').addEventListener('click', function () {
       applyTheme(state.theme === 'dark' ? 'light' : 'dark');
@@ -1122,6 +1159,7 @@
     });
     M.Modal.init(document.getElementById('new-modal'));
     M.Modal.init(document.getElementById('project-modal'));
+    M.Modal.init(document.getElementById('system-modal'));
     M.FormSelect.init(modelSelect);
 
     var saved = 'dark';
@@ -1152,6 +1190,7 @@
       else if (p && s) openSubject(p, s, 'replace');
     });
     loadTemplates();
+    loadSettings();
 
     inputEl.focus();
   });

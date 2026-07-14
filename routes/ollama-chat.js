@@ -36,6 +36,11 @@
  *   GET  /api/ollama-chat/prompts   → { ok, prompts: [{ content, ts, title? }] }
  *   POST /api/ollama-chat/prompts   → { prompts: [...] } 整清單覆寫（覆寫前 .bak）
  *
+ * 全域設定（單檔 settings.json）：
+ *   GET  /api/ollama-chat/settings  → { ok, settings: { systemPrompt } }（無檔回預設格式指示）
+ *   POST /api/ollama-chat/settings  → { systemPrompt } 覆寫（覆寫前 .bak；空字串＝停用）
+ *   systemPrompt 由前端在每次對話送出前 prepend 成 role:'system' 訊息給 Ollama（不落地進 turn）
+ *
  * 資料模型（v2，request-response 結構；見 lib 檔頭與 DESIGN.md §1）：
  *   chat.messages[] 一筆＝一個 turn = { uid, serial, role:'user', content, ts, hidden?, response }
  *   response = { uid, role:'assistant', content, ts, model? } | null
@@ -75,6 +80,23 @@ const PROTECTED_PROJECTS = [DEFAULT_PROJECT];
 // Prompt 樣板庫：全域單檔（另一個儲存面，與對話分開）；備份收 UPLOAD_ROOT/.bak/
 const PROMPTS_FILE = path.join(UPLOAD_ROOT, 'prompts.json');
 const ROOT_BAK = path.join(UPLOAD_ROOT, '.bak');
+
+// 全域設定（單檔）：目前只有 systemPrompt——每次對話送出前 prepend 給 Ollama 的 system 訊息，
+// 用來要求固定輸出格式等（DESIGN.md §6 原本預留、此處補出來；未來可再放 temperature 等參數）。
+const SETTINGS_FILE = path.join(UPLOAD_ROOT, 'settings.json');
+const SYSTEM_PROMPT_MAX = 4000;
+// 預設值＝owner 要的「標題＋Key words＋Tags」格式指示（可在 UI 改或清空）。
+// Key words＝Markdown 條列、每行一個中英對照；Tags＝同一行、每個以 # 開頭並用反引號包成行內程式碼。
+const DEFAULT_SYSTEM_PROMPT = [
+  '請用「與使用者相同的語言」回答，並在每則回覆遵守以下結構：',
+  '1. 開頭一行 Markdown H1 標題（`# 標題`），一句話點出本則回覆的主題。',
+  '2. 中間照常、完整地回答問題。',
+  '3. 結尾依序附兩段，兩段各自的 `#### ` 標題都要「單獨成一行」，標題那行後面不要接任何內容：',
+  '   - `#### Key words`：標題下面用 Markdown 條列，每行一個關鍵詞、中英對照，項目符號用 `*`，格式為 `* 中文 (English)`，共 3–5 個。例如：',
+  '     * 域名转换 (domain name translation)',
+  '   - `#### Tags`：標題 `#### Tags` 單獨一行後，「換到下一行」再放所有標籤——全部標籤寫在同一行、以空格分隔，每個標籤以 # 開頭、中英對照、並用反引號包成行內程式碼，格式為 `#中文（English）`，共 3–5 個。例如（標題與標籤分成兩行）：',
+  '     `#域名系统（Domain Name System）` `#TCP/IP协议栈（TCP/IP-stack）`'
+].join('\n');
 
 // Ollama base URL：讀取時才取值（.env 由 app.js 載入）
 function ollamaBase() {
@@ -655,6 +677,44 @@ router.post('/prompts', async (req, res) => {
     return res.json({ ok: true, count: clean.length });
   } catch (err) {
     console.error('[ollama-chat] POST /prompts failed:', err);
+    return res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+/* ---------- 全域設定（system prompt） ---------- */
+
+// GET /api/ollama-chat/settings — 讀全域設定（無檔＝回預設 systemPrompt，讓格式指示「開箱即用」）
+router.get('/settings', async (req, res) => {
+  try {
+    const j = JSON.parse(await fs.readFile(SETTINGS_FILE, 'utf8'));
+    const systemPrompt = typeof j.systemPrompt === 'string' ? j.systemPrompt : DEFAULT_SYSTEM_PROMPT;
+    return res.json({ ok: true, settings: { systemPrompt } });
+  } catch (err) {
+    if (err.code === 'ENOENT') return res.json({ ok: true, settings: { systemPrompt: DEFAULT_SYSTEM_PROMPT } });
+    console.error('[ollama-chat] GET /settings failed:', err);
+    return res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// POST /api/ollama-chat/settings — 整檔覆寫（owner registry 式；覆寫前 .bak）。
+// systemPrompt 允許空字串（＝停用格式指示，不 prepend 任何 system 訊息）。
+router.post('/settings', async (req, res) => {
+  const raw = (req.body || {}).systemPrompt;
+  if (typeof raw !== 'string' || raw.length > SYSTEM_PROMPT_MAX) {
+    return res.status(400).json({ ok: false, error: 'invalid systemPrompt' });
+  }
+  const systemPrompt = raw;
+  try {
+    await fs.mkdir(UPLOAD_ROOT, { recursive: true });
+    try {
+      await fs.access(SETTINGS_FILE);
+      await fs.mkdir(ROOT_BAK, { recursive: true });
+      await fs.copyFile(SETTINGS_FILE, path.join(ROOT_BAK, 'settings-' + timestamp() + '.json.bak'));
+    } catch (e) { /* 首寫尚無檔，免備份 */ }
+    await fs.writeFile(SETTINGS_FILE, JSON.stringify({ systemPrompt }, null, 2) + '\n', 'utf8');
+    return res.json({ ok: true, settings: { systemPrompt } });
+  } catch (err) {
+    console.error('[ollama-chat] POST /settings failed:', err);
     return res.status(500).json({ ok: false, error: err.message });
   }
 });

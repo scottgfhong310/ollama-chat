@@ -1,6 +1,6 @@
 # ollama-chat — Session context
 
-> 版本 v1.6｜最後更新 2026-07-13
+> 版本 v1.7｜最後更新 2026-07-14
 
 本地 **Ollama** 模型的全版面 Web 聊天介面：**project（資料夾，一級公民＝可建立/改名/刪除、帶穩定
 `uid`；`inbox`＝未歸類收容處）→ subject（一組對話＝一個 JSON 檔，帶穩定 `uid`）→ turn（request-response
@@ -8,7 +8,8 @@
 markdown 渲染（marked + DOMPurify）、自動命名（首句 → subject、落 `inbox`；「新對話」Subject
 留空時改由 Ollama 依首個 prompt 背景命名）、prompt 可隱藏（索引＋對話區＋context＋匯出同步排除）、
 匯出 Markdown、深連結 `?uid=<subject uid>`（rename-stable；舊格式 `?project=&subject=` 仍可開，
-開啟後自動升級網址）。輕量 Express 後端（Ollama proxy＋對話存取），無資料庫、無 registry——純檔案掃描。
+開啟後自動升級網址）、全域 system prompt（可編輯，預設要求「標題＋Key words＋Tags」輸出格式）。
+輕量 Express 後端（Ollama proxy＋對話存取），無資料庫、無 registry——純檔案掃描。
 
 本 app 屬於 **nodeapp WebApp 家族**；共同規範與流程在
 <https://github.com/scottgfhong310/nodeapp-webapp-family>（`DESIGN_GUIDELINES.md` 規範、`WORKFLOW.md` 流程）。**改動前請先讀那兩份，照其中 canon 做。**
@@ -31,6 +32,7 @@ public/apps/ollama-chat/            # 前端（服務於 /apps/ollama-chat/）
 │                                   #   與 favicon 版 favicon(-light).svg（放大標記，分頁小尺寸用）＋favicon.ico／png／manifest.json（相對路徑）
 public/upload/ollama-chat/chats/    # 對話內容：<project>/<subject>.json（不進版控）；.bak/ 收刪除備份
 public/upload/ollama-chat/prompts.json  # Prompt 樣板庫（全域單檔，不進版控）；備份在 ../.bak/
+public/upload/ollama-chat/settings.json # 全域設定（systemPrompt；不進版控）；備份在 ../.bak/
 .env（.env.example）                # OLLAMA_BASE_URL（預設 http://localhost:11434）、PORT
 ```
 
@@ -116,6 +118,12 @@ npm install && node app.js          # → http://localhost:3000/apps/ollama-chat
 - **Prompt 樣板庫**：另一個儲存面（全域單檔 `prompts.json`，與對話分開）；owner registry 式
   **整清單覆寫**、覆寫前 `.bak`（§3.5 精神，寫入頻率低）。前端記憶體 state 為真相、
   存失敗回讀伺服器；點樣板**插入輸入框游標處**（dispatch input 同步 label／清除鈕／高度）。
+- **全域 system prompt（輸出格式指示）**：`#setting-system`（側鍵 `psychology`）開 modal 編輯一段
+  全域 system prompt，存全域單檔 `settings.json`（`{ systemPrompt }`，比照 prompts.json 覆寫＋`.bak`）。
+  每次送出前 `withSystemPrompt()` 把非空的它 `unshift` 成 `role:'system'` 訊息接在對話 turns 前面
+  （只在送出時組裝、**不落地進 turn**；後端 `/chat` 仍純 proxy）。`GET /settings` 無檔時回**預設格式指示**
+  （`# 標題`＋`#### Key words`＋`#### Tags`，開箱即用；GET 不寫檔）；**空字串＝停用**。與 §5.1 自動命名
+  的 `/title` system prompt 各自獨立。本機小模型盡量遵守、非保證。詳見 DESIGN.md §5.6。
 - **subject 列內動作（改名／刪除）**：左欄每列尾端 `more_vert`（hover 現身、觸控恆顯）展開
   `edit`／`delete` 兩鍵（一次只展一列、`stopPropagation` 不觸發開啟）——**動作對象＝該列**，
   不必先開啟該 subject；改名走與「新對話」共用 modal 的 rename 模式（`renameTarget` 記對象），
