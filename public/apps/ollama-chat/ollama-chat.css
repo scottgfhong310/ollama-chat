@@ -533,8 +533,13 @@ body.is-empty .empty-state {
   box-shadow: none;
 }
 
+.bubble.md code,
+.bubble.md pre {
+  font-family: 'Sarasa Mono TC Light', 'Sarasa Mono TC', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-weight: 300;
+}
+
 .bubble.md code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
   font-size: .88em;
   background: var(--surface-2);
   border: 1px solid var(--border);
