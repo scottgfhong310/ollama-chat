@@ -7,9 +7,9 @@
  *   --td-color  點顏色（預設 #ef9f27）
  *   --td-speed  呼吸週期（預設 2.1s）
  *
- * 預設值由 demo（/apps/markdown-library/demo/thinking-dot.html）「調整→預覽→存檔覆蓋」本檔重新產生；
+ * 本檔為家族此 utility 的權威版：由獨立 app thinking-dot 的調校台
+ * （/apps/thinking-dot/）「調整→預覽→存檔覆蓋」重新產生；家族其餘複製點自本份同步。
  * 各 app 仍可就地以 token 覆寫（例：#loading .thinking-dot { --td-color: var(--accent); }）。
- * 家族 4 份同步副本之一，以 markdown-library 這份為準（同 md-tweaks.js / side-tool.css）。
  */
 @keyframes thinking-pulse {
   0%, 100% { transform: scale(.5); opacity: .4; }
