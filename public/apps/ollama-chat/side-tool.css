@@ -1,26 +1,52 @@
-/* 右側浮動工具列（家族招牌元件）
- * 〔正統〕版：把按鈕包進 .side-tools flex 容器，由 flex 自動堆疊
- * （不綁固定 id 數量／順序），顏色以 CSS 變數驅動、隨 light / dark 主題切換。
- * 見家族 DESIGN_GUIDELINES §5.5。
+/* side-tool.css — 右側浮動工具列（家族招牌元件）
+ *
+ * ⚠️ **本檔是家族權威版**（比照 materialize-dark.css）。各 app 的
+ *    public/apps/<name>/side-tool.css 是它的 **byte-identical 複製件**——
+ *    要改就改這裡，再同步所有複製點；**不要在 app 內就地改**。
+ *    稽核指令見 DESIGN_GUIDELINES §5.5（此處不寫 shell glob——glob 內的星號斜線
+ *    會提前關閉 CSS 註解，整份樣式表從那裡開始解析失敗；2026-07-26 實際踩過）。
+ *
+ * ⚠️ **本檔只放「側鍵元件本身」**。app 專屬的東西——設定 modal 的皮膚、
+ *    某支 app 才有的面板、drop-overlay……——一律放各 app 自己的 <name>.css。
+ *    2026-07-26 收斂前，7 支 app 的複製件夾帶了 #config-modal／#paste-modal 的樣式
+ *    （其中 4 支的 HTML 根本沒有那個 modal，是複製時整包帶進來的死 CSS），
+ *    正是同一支「共用件」長出 7 個不同 md5 的主因。
+ *
+ * 規範：DESIGN_GUIDELINES §5.5。版面用 .side-tools flex 容器自動堆疊
+ *      （不綁固定 id 數量／順序），顏色以 CSS 變數驅動、隨 light / dark 切換。
+ *      消費端須自備 --tool-fg / --tool-bg / --border / --accent 四個 token。
  */
 
 :root {
-  --tool-size: 46px;   /* icon 直徑 */
-  --tool-gap: 9px;     /* icon 之間的間距 */
+  --tool-size: 46px;  /* icon 直徑 */
+  --tool-gap: 9px;    /* icon 之間的間距 */
+}
+
+/* 矮視窗：icon 緊湊化，工具數多時整欄捲動（不會被遮） */
+@media (max-height: 800px) {
+  :root { --tool-size: 40px; --tool-gap: 6px; }
 }
 
 .side-tools {
   position: fixed;
-  right: 16px;
+  right: 12px;
   top: 50%;
   transform: translateY(-50%);   /* 垂直居中於畫面右側 */
+  max-height: calc(100vh - 24px);
   display: flex;
   flex-direction: column;
   gap: var(--tool-gap);
+  padding: 2px 4px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;            /* Firefox 隱藏卷軸 */
   z-index: 1002;
+  transition: opacity .15s ease;
 }
+.side-tools::-webkit-scrollbar { display: none; }   /* WebKit 隱藏卷軸 */
 
 .side-tool {
+  flex: 0 0 auto;
   width: var(--tool-size);
   height: var(--tool-size);
   display: flex;
@@ -28,12 +54,19 @@
   justify-content: center;
   border-radius: 50%;
   cursor: pointer;
+  z-index: 1002;
   color: var(--tool-fg);
   background: var(--tool-bg);
   border: 1px solid var(--border);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.22);
   transition: transform .1s ease, filter .15s ease, background .15s ease, color .15s ease, opacity .15s ease;
   user-select: none;
+}
+
+/* 側欄（sidenav / 檔案清單 / 匯出檔清單）開啟時，隱藏整排工具；收起後再淡入 */
+body.sidenav-open .side-tools {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .side-tool:hover {
@@ -50,26 +83,53 @@
   line-height: 1;
 }
 
-/* toggle 開啟狀態以 accent 色標示 */
+/* toggle 開啟狀態以 accent 色標示（如閱讀風格、格式化開關） */
 .side-tool.active {
   color: var(--accent);
   border-color: var(--accent);
 }
 
-/* 警示鍵（清空資料夾）hover 轉紅 */
-#setting-clear:hover {
+/* 警示鍵（清除頁面／清空資料夾）hover 轉紅（§5.5） */
+#setting-clear:hover,
+#setting-clear-downloads:hover {
   color: #ff6e6e;
 }
 
-/* 右側 file-list 開啟時，隱藏整排工具；收起後再淡入 */
-body.sidenav-open .side-tools {
-  opacity: 0;
-  pointer-events: none;
+/* ===== App icon 徽章（§5.5「（甲）」；沒用到的 app 這幾條不會命中） =====
+ * 雙色標記拆成兩層同 viewBox 的 mask 疊圖（同 .glyph 缺字的手法）：
+ * 字母層隨 --tool-fg 跟著 light/dark 變色，另一層固定品牌色。
+ * 單張彩色 tile 的 app 則在自己的 <name>.css 覆寫 background（見 §5.5 變體）。 */
+.side-tool .app-icon {
+  position: relative;
+  display: inline-block;
+  width: 28px;
+  height: 28px;
+}
+.side-tool .app-icon-letter,
+.side-tool .app-icon-arrow {
+  position: absolute;
+  inset: 0;
+  -webkit-mask: var(--g) center / contain no-repeat;
+  mask: var(--g) center / contain no-repeat;
+}
+.side-tool .app-icon-letter { background-color: var(--tool-fg); }
+.side-tool .app-icon-arrow  { background-color: #5fcfa0; }   /* 品牌綠，不隨主題變 */
+
+/* 承載徽章的那顆鍵：方形圓角（squircle）取代正圓，不被圓約束；
+ * 底色／邊框仍沿用主題變數，隨 light/dark 自動切換。 */
+#setting-menu {
+  border-radius: 22%;
+}
+
+/* 第一顆是 app-icon 徽章 → 與第二顆間距加倍（把「品牌」和下面的「工具」視覺分區） */
+.side-tools > .side-tool:first-child:has(.app-icon) {
+  margin-bottom: var(--tool-gap);   /* flex gap 之外再加一份＝加倍 */
 }
 
 /* 列印時隱藏所有工具 */
 @media print {
-  .side-tools {
+  .side-tools,
+  .side-tool {
     display: none !important;
   }
 }
