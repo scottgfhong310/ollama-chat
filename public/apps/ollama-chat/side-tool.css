@@ -27,9 +27,15 @@
   :root { --tool-size: 40px; --tool-gap: 6px; }
 }
 
+/* right 的 --content-sb 是「app-shell 版型」的捲軸補償（§5.5）：
+ * 視窗捲動的頁，經典捲軸會縮小視口，fixed 的 right:12px 自然避開捲軸；
+ * app-shell 的頁（body overflow:hidden、捲軸在內層容器）視口＝整個視窗，
+ * 側鍵會壓在那條貼齊右緣的捲軸上。消費端若是 app-shell，就在控制器量出
+ * 內層捲動容器的 offsetWidth - clientWidth 寫進 --content-sb（overlay 捲軸＝0）；
+ * 沒有定義時 var() 退回 0，對視窗捲動的 app 完全沒有影響。 */
 .side-tools {
   position: fixed;
-  right: 12px;
+  right: calc(12px + var(--content-sb, 0px));
   top: 50%;
   transform: translateY(-50%);   /* 垂直居中於畫面右側 */
   max-height: calc(100vh - 24px);
