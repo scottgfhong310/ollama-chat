@@ -139,12 +139,13 @@ body.sidenav-open .side-tools {
   display: none !important;
 }
 
-/* 選單：釘在側鍵列左邊、與它一樣垂直居中；自己可捲，工具再多也不會超出視窗 */
+/* 選單：**貼著 more 鍵**（位置由 side-tool.js 在開啟時量出來寫進 top/right，
+   因為側鍵列垂直居中、more 的 y 會隨工具數與視窗高度變）。自己可捲，工具再多也不溢出視窗。
+   下面的 top/right 只是 JS 還沒定位前的保險值。 */
 .side-tool-menu {
   position: fixed;
   right: calc(12px + var(--content-sb, 0px) + var(--tool-size) + 10px);
-  top: 50%;
-  transform: translateY(-50%);
+  top: 12px;
   display: none;
   min-width: 190px;
   max-height: calc(100vh - 24px);

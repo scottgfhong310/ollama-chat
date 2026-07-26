@@ -106,6 +106,20 @@
     if (el.style.display !== v) el.style.display = v;
   }
 
+  // 選單貼著 more 鍵：水平放在它左邊，垂直「底對底」對齊；
+  // 選單比可用空間高時夾在視窗內（上下各留 12px），不做垂直居中——那會離觸發點太遠。
+  function positionMenu(rail) {
+    var more = rail._more, menu = rail._menu;
+    var r = more.getBoundingClientRect();
+    menu.style.right = Math.round(window.innerWidth - r.left + 8) + 'px';
+    var h = menu.offsetHeight;                       // 必須已 display:block 才量得到
+    var top = r.bottom - h;                          // 底對底
+    var max = window.innerHeight - h - 12;
+    if (top > max) top = max;
+    if (top < 12) top = 12;
+    menu.style.top = Math.round(top) + 'px';
+  }
+
   function closeMenu(rail) {
     if (rail._menu) rail._menu.classList.remove('open');
     if (rail._more) rail._more.classList.remove('active');
@@ -145,6 +159,9 @@
     } finally {
       if (rail._mo) { rail._mo.takeRecords(); observeRail(rail); }
     }
+    // 選單開著時，重算之後 more 的位置可能變了（視窗縮放、工具增減）→ 一起重貼，
+    // 否則選單會停在舊位置甚至跑出畫面（2026-07-26 實測 300px 高的視窗踩到）。
+    if (rail._menu && rail._menu.classList.contains('open')) positionMenu(rail);
   }
 
   function applyOverflow(rail, more) {
@@ -209,6 +226,7 @@
       e.stopPropagation();
       var open = menu.classList.toggle('open');
       more.classList.toggle('active', open);
+      if (open) positionMenu(rail);                  // 先開再量，才有高度可算
     });
     document.addEventListener('click', function () { closeMenu(rail); });
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeMenu(rail); });
@@ -233,7 +251,12 @@
   else init();
   window.addEventListener('resize', function () {
     if (init._t) window.clearTimeout(init._t);
-    init._t = window.setTimeout(refreshOverflow, 120);
+    init._t = window.setTimeout(function () {
+      refreshOverflow();
+      rails.forEach(function (rail) {               // 開著的選單跟著 more 鍵重貼
+        if (rail._menu && rail._menu.classList.contains('open')) positionMenu(rail);
+      });
+    }, 120);
   });
 
   window.SideTool = {
