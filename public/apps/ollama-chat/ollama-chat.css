@@ -852,6 +852,14 @@ body.is-empty .empty-state {
   #template-nav .tpl-del { opacity: 1; }
 }
 
+/* 側鍵讓開內層 #chat-scroll 的捲軸（app-shell 特有；比照 local-reader）：--content-sb 由 JS 量出
+   捲軸實寬（overlay 捲軸＝0、經典捲軸＝~15px），使側鍵離視窗右緣的視覺距離與 markdown-reader
+   （捲軸在 viewport、fixed 自動避開）一致；不補償的話對話一長出捲軸，側鍵就壓在捲軸上。
+   選擇器加 html 提高特異度，蓋過稍後載入的 side-tool.css 的 .side-tools{right:12px}。 */
+html .side-tools {
+  right: calc(12px + var(--content-sb, 0px));
+}
+
 /* ===== App icon 徽章：#setting-menu 用完整 tile 取代 folder_open（家族 §5.5 甲） =====
    本 app 用完整 tile（自帶圓角底）＋background-image 隨 data-theme 換深淺版，非 mask。 */
 #setting-menu {

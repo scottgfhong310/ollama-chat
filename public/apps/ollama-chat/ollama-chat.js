@@ -66,6 +66,17 @@
   // 「已執行」微回饋：icon 暫時變 check 800ms（家族共用 side-tool.js，§5.5）
   var setIconDone = window.SideTool.setIconDone;
 
+  /* ---------- 側鍵與捲軸對齊 ---------- */
+  // app-shell（body overflow:hidden）：頁面捲軸在內層 #chat-scroll、而非 viewport，
+  // 故固定定位的 .side-tools（right:12px）不會自動避開它、對話一長就會壓在捲軸上。量出
+  // #chat-scroll 目前的捲軸寬度寫進 --content-sb，讓 side-tools 往左讓開，與 markdown-reader
+  // （捲軸在 viewport、fixed 自動避開）的視覺距離一致。overlay 捲軸量到 0＝不位移（本來就一致）。
+  // 比照 local-reader 的同名函式。
+  function updateSideToolsSB() {
+    var sb = chatScroll ? Math.max(0, chatScroll.offsetWidth - chatScroll.clientWidth) : 0;
+    document.documentElement.style.setProperty('--content-sb', sb + 'px');
+  }
+
   /* ---------- Markdown 渲染（DOM 工作，故在控制器不在 lib） ---------- */
 
   marked.use({ gfm: true, breaks: true });
@@ -1201,6 +1212,15 @@
     bindEvents();
     updateChrome();
     document.body.classList.add('is-empty');
+
+    // 側鍵讓開內層捲軸：初始量一次，之後靠 resize ＋ #chat-scroll 內容盒寬度變化補量
+    // （捲軸出現/消失會改變 clientWidth → ResizeObserver 會叫；串流、切對話、刪訊息都涵蓋，
+    //  不必在每條渲染路徑各補一次呼叫）。
+    updateSideToolsSB();
+    window.addEventListener('resize', _.debounce(updateSideToolsSB, 150));
+    if (window.ResizeObserver && chatScroll) {
+      new ResizeObserver(updateSideToolsSB).observe(chatScroll);
+    }
 
     // 深連結：優先 ?uid=（rename-stable，網址不動）；沒有才退回舊格式 ?project=&subject=，
     // 開啟後就地把網址升級成 ?uid=（historyMode:'replace'，不多留一筆歷史）。

@@ -115,6 +115,18 @@ npm install && node app.js          # → http://localhost:3000/apps/ollama-chat
 - **side-tool**：`#setting-menu`（App icon 徽章＝左欄對話庫開合，`.active`＝開）/ `#setting-prompts`（prompt 清單 sidenav，開檔才顯示）/
   `#setting-templates`（Prompt 樣板庫 sidenav，恆顯示）/
   `#setting-new`（新對話 modal）/ `#setting-download`（匯出 .md，開檔才顯示）/ `#setting-mode` / `#setting-lang`。
+  「已執行」的 check 微回饋只有 `#setting-download` 用得到（其餘是 toggle／開 modal），走家族共用
+  `window.SideTool.setIconDone`（`side-tool.js`，§5.5），**不要再在本檔寫一份**。
+- **側鍵要讓開內層捲軸（app-shell 的坑，2026-07-26 補）**：本 app 是 app-shell（`body{overflow:hidden}`、
+  捲軸在內層 `#chat-scroll`），而 `.side-tools` 是 `position:fixed`——**視窗沒有捲軸時 `right:12px`
+  量的是視窗實體右緣**，於是對話一長出捲軸，側鍵就壓在捲軸上（`#chat-scroll` 右緣貼齊 viewport）。
+  對照組 `markdown-reader` 是視窗捲動，經典捲軸會縮小視口、fixed 自動避開，視覺上距實體右緣 12＋捲軸寬。
+  補償方式**比照 `local-reader`**：`html .side-tools { right: calc(12px + var(--content-sb, 0px)) }`
+  ＋控制器 `updateSideToolsSB()` 量 `#chat-scroll` 的 `offsetWidth - clientWidth` 寫進 `--content-sb`。
+  掛載點與 local-reader 不同——本 app 內容變動來源太多（串流每次 append、切對話、刪訊息、隱藏 prompt
+  重繪），故不在每條渲染路徑各補一次呼叫，改用 **`ResizeObserver` 觀察 `#chat-scroll`**（捲軸出現／
+  消失會改變其內容盒寬度，正是要的訊號）＋初始一次＋`resize` debounce。
+  **overlay 捲軸的機器量到 0＝不位移**，所以這個差異只在「總是顯示捲軸」的設定下看得出來。
 - **Prompt 樣板庫**：另一個儲存面（全域單檔 `prompts.json`，與對話分開）；owner registry 式
   **整清單覆寫**、覆寫前 `.bak`（§3.5 精神，寫入頻率低）。前端記憶體 state 為真相、
   存失敗回讀伺服器；點樣板**插入輸入框游標處**（dispatch input 同步 label／清除鈕／高度）。
