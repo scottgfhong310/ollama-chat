@@ -25,7 +25,7 @@ routes/ollama-chat.js               # GET /models、POST /chat（串流直通）
 public/apps/ollama-chat/            # 前端（服務於 /apps/ollama-chat/）
 ├─ index.html · ollama-chat.css · ollama-chat.js · ollama-chat-lib.js
 ├─ materialize-dark.css             # 家族共用（Materialize 深色；materialize.css 之後載入）
-├─ side-tool.css                    # 〔正統〕flex .side-tools 版（§5.5）
+├─ side-tool.css · side-tool.js     # 家族共用側鍵：〔正統〕flex .side-tools 樣式＋setIconDone 行為（權威版＝家族 repo，§5.5）
 ├─ thinking-dot.css                 # 共用載入點 utility（權威版＝獨立 repo thinking-dot；本份消費、byte-identical 同步）
 ├─ i18n.js · locales/{zh-Hant,en,ja}.js
 ├─ icons/                           # App icon；兩組 SVG：tile 版 ollama-icon(-light).svg（留白，給側鍵徽章＋apple-touch/PWA）
@@ -141,7 +141,7 @@ npm install && node app.js          # → http://localhost:3000/apps/ollama-chat
   （`collapseAll()`），不是 toggle——展開永遠是個別 project 自己的事（點 `proj-head`），icon／
   文字固定不反映聚合狀態。收合狀態只在記憶體（`state.collapsed`），不落地。
 - **複製件登記**（共用件改版時靠這份清單同步）：`materialize-dark.css` ←家族 repo、
-  `side-tool.css` ←html-viewer（〔正統〕flex 版）、`thinking-dot.css` ←獨立 repo thinking-dot（canonical）、
+  `side-tool.css`／`side-tool.js` ←家族 repo（§5.5 權威版）、`thinking-dot.css` ←獨立 repo thinking-dot（canonical）、
   `i18n.js` ←html-viewer（家族 30 份複製點之一）、`LICENSE` ←家族。
 - **InProgress 鏡像**：同名前端回灌到 `InProgress/public/apps/ollama-chat/`，route 掛在 InProgress 的
   `/api/ollama-chat`；本 app 無檔案上傳，不用共用 `/api/upload`。GitHub 版是權威，改版後要再回灌。
