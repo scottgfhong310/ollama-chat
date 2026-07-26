@@ -154,6 +154,6 @@ npm install && node app.js          # → http://localhost:3000/apps/ollama-chat
   文字固定不反映聚合狀態。收合狀態只在記憶體（`state.collapsed`），不落地。
 - **複製件登記**（共用件改版時靠這份清單同步）：`materialize-dark.css` ←家族 repo、
   `side-tool.css`／`side-tool.js` ←家族 repo（§5.5 權威版）、`thinking-dot.css` ←獨立 repo thinking-dot（canonical）、
-  `i18n.js` ←html-viewer（家族 30 份複製點之一）、`LICENSE` ←家族。
+  `i18n.js` ←家族 repo（權威版，byte-identical）、`LICENSE` ←家族。
 - **InProgress 鏡像**：同名前端回灌到 `InProgress/public/apps/ollama-chat/`，route 掛在 InProgress 的
   `/api/ollama-chat`；本 app 無檔案上傳，不用共用 `/api/upload`。GitHub 版是權威，改版後要再回灌。

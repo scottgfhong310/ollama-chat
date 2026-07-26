@@ -1,6 +1,13 @@
 /**
  * I18n — 極簡前端多語系引擎（無相依套件、無 build）
  *
+ * ⚠️ **本檔是家族權威版**（同 side-tool.{css,js} / materialize-dark.css 的慣例）。
+ *    各 app 的 public/apps/<name>/i18n.js 是它的 **byte-identical 複製件**——
+ *    要改就改權威版（nodeapp-webapp-family/i18n.js），再同步所有複製點；
+ *    **不要在 app 內就地改**。稽核指令見 SHARED_LIBRARY_GUIDELINES §4。
+ *
+ *    字典不是共用件：locales/*.js 每支 app 各自維護（B 類，見同一份規範 §2）。
+ *
  * 字典與引擎分離：本檔只有引擎，語言字典放在 locales/<code>.js，
  * 每個語言檔以同步 <script> 載入後呼叫 I18n.register() 自我註冊：
  *
