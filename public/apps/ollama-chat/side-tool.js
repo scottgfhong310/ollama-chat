@@ -70,8 +70,175 @@
     return icon;
   }
 
+  /* ============================ 溢出收納（§5.5） ============================
+   * 矮視窗放不下時，把中段的 app 工具收進一顆 more_vert，點開是一份選單。
+   * 舊做法是「icon 縮一號＋整欄可捲」——捲軸是隱藏的，使用者根本不知道下面還有東西。
+   *
+   * 規則：
+   *   - **釘住不收**：第一顆（入口鍵／App icon 徽章，品牌與主要入口）＋ chrome（#setting-mode /
+   *     #setting-lang，每支都有、位置要穩）。其餘 app 工具由上而下能塞幾顆算幾顆，剩下的進選單。
+   *   - **容量由高度算出來**，不是寫死的數字：可用高度 ÷（--tool-size ＋ --tool-gap）。
+   *     視窗一拉高就自動放回去，不必重新整理。
+   *   - **不搬 DOM**：溢出的鍵留在原地只是 display:none，選單裡放的是**代理項**，點了轉呼叫
+   *     真正那顆的 click()。這樣 app 綁在該元素上的 listener 完全不受影響。
+   *   - 只在**真的放不下**時才出現；隱藏中的鍵（如只在開檔時顯示的下載）不計、不列。
+   *
+   * app 端不必做任何事；若 app 會動態顯示／隱藏側鍵（showDoc 那類），呼叫
+   * SideTool.refreshOverflow() 可立即重算（本檔也有 MutationObserver 兜底）。
+   */
+
+  var MORE_ID = 'setting-more';
+  var rails = [];          // 已接管的 .side-tools
+
+  function isTool(el) {
+    return el && el.nodeType === 1 && el.classList.contains('side-tool') && el.id !== MORE_ID;
+  }
+  // 呼叫前已把 is-overflow 全數清掉，所以這裡看到的 display:none 一定是 app 自己藏的
+  function isHidden(el) {
+    return getComputedStyle(el).display === 'none';
+  }
+  function isPinned(el, index) {
+    return index === 0 || el.id === 'setting-mode' || el.id === 'setting-lang';
+  }
+
+  // 同值就不要寫：寫進去照樣算一次 attribute 變更，會多餘地叫醒 observer
+  function setDisplay(el, v) {
+    if (el.style.display !== v) el.style.display = v;
+  }
+
+  function closeMenu(rail) {
+    if (rail._menu) rail._menu.classList.remove('open');
+    if (rail._more) rail._more.classList.remove('active');
+  }
+
+  function buildMenu(rail, items) {
+    var menu = rail._menu;
+    menu.innerHTML = '';
+    items.forEach(function (el) {
+      var row = document.createElement('div');
+      row.className = 'side-tool-menu-item';
+      var icon = el.querySelector('i.material-icons');
+      var glyph = document.createElement('i');
+      glyph.className = 'material-icons';
+      glyph.textContent = icon ? icon.textContent : 'radio_button_unchecked';
+      var label = document.createElement('span');
+      label.textContent = el.getAttribute('title') || el.id.replace(/^setting-/, '');
+      row.appendChild(glyph);
+      row.appendChild(label);
+      row.addEventListener('click', function () {
+        closeMenu(rail);
+        el.click();                    // 轉呼叫真正那顆，app 的 listener 照常跑
+      });
+      menu.appendChild(row);
+    });
+  }
+
+  function refreshOne(rail) {
+    var more = rail._more;
+    // ⚠️ 本函式會改子元素的 class 與 more 的 style，而我們又在同一個 rail 上掛了
+    //    MutationObserver——不先停掉的話「自己改 → observer 觸發 → 再改」會無限迴圈、
+    //    整頁卡在載入狀態（2026-07-26 實際踩過）。標準解法：disconnect → 改 → takeRecords() 丟掉
+    //    自己造成的紀錄 → 重新 observe。
+    if (rail._mo) rail._mo.disconnect();
+    try {
+      applyOverflow(rail, more);
+    } finally {
+      if (rail._mo) { rail._mo.takeRecords(); observeRail(rail); }
+    }
+  }
+
+  function applyOverflow(rail, more) {
+    // 消費端若整批重繪側鍵列（rail.innerHTML = '…'），我們加的 more 鍵會被一起洗掉；
+    // 每次重算時確認它還在，不在就補回去並移到最後（實驗台切工具數量時實際踩過）。
+    if (more.parentNode !== rail) rail.appendChild(more);
+    else if (rail.lastElementChild !== more) rail.appendChild(more);
+
+    var kids = Array.prototype.filter.call(rail.children, isTool);
+    // 先全部放回去再重算，才不會因為上一輪的 is-overflow 影響量測
+    kids.forEach(function (el) { el.classList.remove('is-overflow'); });
+
+    var shown = kids.filter(function (el) { return !isHidden(el); });
+    var cs = getComputedStyle(rail);
+    var size = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--tool-size')) || 46;
+    var gap = parseFloat(cs.gap) || 9;
+    var avail = parseFloat(cs.maxHeight);
+    if (!avail || !isFinite(avail)) avail = window.innerHeight - 24;
+    var capacity = Math.max(1, Math.floor((avail + gap) / (size + gap)));
+
+    if (shown.length <= capacity) {           // 放得下 → 收起 more、全部露出
+      setDisplay(more, 'none');
+      closeMenu(rail);
+      return;
+    }
+    // 放不下：釘住的先佔位，more 自己也佔一格
+    var pinned = shown.filter(function (el, i) { return isPinned(el, i); });
+    var room = capacity - pinned.length - 1;  // 扣掉 more 自己
+    var overflow = [];
+    var kept = 0;
+    shown.forEach(function (el, i) {
+      if (isPinned(el, i)) return;   // i＝在「目前可見的鍵」裡的序，故第一顆＝入口鍵
+      if (kept < room) { kept++; return; }
+      el.classList.add('is-overflow');
+      overflow.push(el);
+    });
+    if (!overflow.length) { setDisplay(more, 'none'); closeMenu(rail); return; }
+    setDisplay(more, '');
+    buildMenu(rail, overflow);
+  }
+
+  function observeRail(rail) {
+    rail._mo.observe(rail, { attributes: true, attributeFilter: ['style', 'class'], subtree: true, childList: true });
+  }
+
+  function refreshOverflow() { rails.forEach(refreshOne); }
+
+  function adopt(rail) {
+    if (rail._more) return;
+    var more = document.createElement('div');
+    more.id = MORE_ID;
+    more.className = 'side-tool';
+    more.setAttribute('title', '更多工具');
+    more.setAttribute('data-i18n-title', 'tool.more');   // 有 i18n 的 app 會自動翻譯
+    more.innerHTML = '<i class="material-icons">more_vert</i>';
+    more.style.display = 'none';
+
+    var menu = document.createElement('div');
+    menu.className = 'side-tool-menu';
+
+    more.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var open = menu.classList.toggle('open');
+      more.classList.toggle('active', open);
+    });
+    document.addEventListener('click', function () { closeMenu(rail); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeMenu(rail); });
+
+    rail.appendChild(more);
+    document.body.appendChild(menu);
+    rail._more = more;
+    rail._menu = menu;
+    rails.push(rail);
+
+    // 側鍵被 app 顯示／隱藏（showDoc 那類）時自動重算
+    rail._mo = new MutationObserver(function () { refreshOne(rail); });
+    observeRail(rail);
+  }
+
+  function init() {
+    Array.prototype.forEach.call(document.querySelectorAll('.side-tools'), adopt);
+    refreshOverflow();
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+  window.addEventListener('resize', function () {
+    if (init._t) window.clearTimeout(init._t);
+    init._t = window.setTimeout(refreshOverflow, 120);
+  });
+
   window.SideTool = {
     setIconDone: setIconDone,
+    refreshOverflow: refreshOverflow,
     DONE_ICON: DONE_ICON,
     DONE_MS: DONE_MS
   };

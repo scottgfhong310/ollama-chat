@@ -132,10 +132,69 @@ body.sidenav-open .side-tools {
   margin-bottom: var(--tool-gap);   /* flex gap 之外再加一份＝加倍 */
 }
 
+/* ===== 溢出收納（§5.5）：矮視窗放不下時，中段的 app 工具收進 #setting-more =====
+ * 判斷與代理項都在 side-tool.js（容量由高度算出、不搬 DOM）；本檔只管長相。
+ * 被收起來的鍵留在原地不動，只是不顯示——app 綁在它身上的 listener 完全不受影響。 */
+.side-tool.is-overflow {
+  display: none !important;
+}
+
+/* 選單：釘在側鍵列左邊、與它一樣垂直居中；自己可捲，工具再多也不會超出視窗 */
+.side-tool-menu {
+  position: fixed;
+  right: calc(12px + var(--content-sb, 0px) + var(--tool-size) + 10px);
+  top: 50%;
+  transform: translateY(-50%);
+  display: none;
+  min-width: 190px;
+  max-height: calc(100vh - 24px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 6px;
+  border-radius: 10px;
+  color: var(--tool-fg);
+  background: var(--tool-bg);
+  border: 1px solid var(--border);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.28);
+  z-index: 1003;
+}
+
+.side-tool-menu.open {
+  display: block;
+}
+
+.side-tool-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 7px;
+  cursor: pointer;
+  font-size: .9rem;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.side-tool-menu-item:hover {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
+}
+
+.side-tool-menu-item i.material-icons {
+  font-size: 20px;
+  flex: 0 0 auto;
+}
+
+/* 側欄開啟時與側鍵列一起收（列是淡出，選單直接關） */
+body.sidenav-open .side-tool-menu {
+  display: none;
+}
+
 /* 列印時隱藏所有工具 */
 @media print {
   .side-tools,
-  .side-tool {
+  .side-tool,
+  .side-tool-menu {
     display: none !important;
   }
 }
