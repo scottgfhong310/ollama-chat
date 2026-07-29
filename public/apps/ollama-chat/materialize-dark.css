@@ -103,7 +103,15 @@ body.dark-mode,
 html.dark-mode body,
 body.dark-mode,
 html:not(.light-mode) body {
-  background: var(--mz-bg);
+  /* 這條的特異性是 (0,1,1)，會贏過各 app 慣用的 `html, body { background: var(--bg) }` (0,0,1)，
+     於是**深色模式下 app 的 --bg 對 body 是失效的**——body 變成本檔的 #121212。
+     單看 body 不明顯，但凡是拿 var(--bg) 當底色的 sticky / overlay 元素就會與 body 差一階，
+     捲動時出現可見接縫（2026-07-29 實測：faber-castell-color 的 .fc-group-head 與 .page-head、
+     caran-dache-color 的 .cda-group-head、color-palette 的 .hue-header 皆中）。
+     故改為**優先採用 app 自己的 --bg**，沒宣告的才退回 --mz-bg——
+     實測全家族 25 支有宣告 --bg 的 app 深色值一致為 #0f1115，此改動符合它們原本的意圖。
+     淺色模式本來就不受影響（本規則被 html:not(.light-mode) 排除）。 */
+  background: var(--bg, var(--mz-bg));
   color: var(--mz-text);
 }
 
