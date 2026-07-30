@@ -59,7 +59,7 @@ I18n.register('ja', {
   'toast.copyFail': 'コピーに失敗しました（localhost または HTTPS が必要）',
   'toast.created': '作成しました：{n}',
   'toast.saveFail': '保存に失敗しました：{m}',
-  'toast.loadFail': '読み込みに失敗しました：{n}（{m}）',
+  'toast.loadFail': '読み込み失敗：{n}（{m}）',
   'toast.treeFail': 'ライブラリの読み込みに失敗しました：{m}',
   'toast.modelsFail': 'モデル一覧の取得に失敗しました：{m}——Ollama は起動していますか？',
   'toast.endpointSwitched': 'Ollama エンドポイントを切り替えました',
