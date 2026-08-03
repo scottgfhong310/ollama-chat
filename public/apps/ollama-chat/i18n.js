@@ -71,7 +71,11 @@
           : key;
     if (params) {
       Object.keys(params).forEach(function (k) {
-        s = s.replace(new RegExp('\\{' + k + '\\}', 'g'), String(params[k]));
+        // ⚠️ 必須用 function replacement：字串形式的替換值會把 $& $` $' $$ $1
+        //    當成特殊樣式解讀。插進來的多半是**檔名**（toast.uploaded／copied…），
+        //    使用者完全控制得了那個字串，`A$&B` 會被還原成 `A{n}B`、
+        //    `x$\`y` 會把前面整句文案再貼一次。function 形式的回傳值一律照字面用。
+        s = s.replace(new RegExp('\\{' + k + '\\}', 'g'), function () { return String(params[k]); });
       });
     }
     return s;
