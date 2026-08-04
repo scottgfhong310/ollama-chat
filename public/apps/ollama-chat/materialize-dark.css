@@ -32,6 +32,9 @@
   --mz-success: #66bb6a;
 
   --mz-shadow: rgba(0, 0, 0, 0.45);
+
+  --mz-scroll-thumb: #c4ccd6;
+  --mz-scroll-thumb-hover: #aab3bf;
 }
 
 /* 手動深色模式：建議加在 html */
@@ -64,6 +67,9 @@ body.dark-mode,
   --mz-success: #81c784;
 
   --mz-shadow: rgba(0, 0, 0, 0.75);
+
+  --mz-scroll-thumb: #2f3646;
+  --mz-scroll-thumb-hover: #3d4658;
 }
 
 /* 若沒有手動指定 light-mode，跟隨系統深色模式 */
@@ -95,6 +101,9 @@ body.dark-mode,
     --mz-success: #81c784;
 
     --mz-shadow: rgba(0, 0, 0, 0.75);
+
+    --mz-scroll-thumb: #2f3646;
+    --mz-scroll-thumb-hover: #3d4658;
   }
 }
 
@@ -113,6 +122,47 @@ html:not(.light-mode) body {
      淺色模式本來就不受影響（本規則被 html:not(.light-mode) 排除）。 */
   background: var(--bg, var(--mz-bg));
   color: var(--mz-text);
+}
+
+/* 捲軸軌道對齊頁面底色。
+   成因與上一條同源，只是換一層：本檔第 1 節的 `color-scheme: dark` 會讓瀏覽器
+   以 **UA 預設灰** 畫捲軸軌道，那是畫面上實實在在的**第二種深色**——視窗右緣一條，
+   任何內層捲動容器（表格、側欄、對話區）各再一條，與 body 的 var(--bg) 差一階。
+   上一條是作者的規則被更高特異度蓋掉，這一條是 UA 層的東西**作者根本蓋不到**，
+   只能用 `scrollbar-color` 明講。（2026-08-04 由 circle-text 的深色版面實測發現。）
+
+   `scrollbar-color` 是**可繼承屬性**，設在 :root 即涵蓋所有捲動容器（不必逐個列）。
+   `::-webkit-scrollbar` 是舊版 WebKit（Safari < 18.2）的後備。
+   同上，軌道優先採用 app 自己的 --bg，沒宣告的才退回 --mz-bg。
+
+   ⚠️ `color-scheme` 不可因此拿掉——原生表單控件的深色、以及各 app
+      「dark 主題列印必回淺色」那條 `@media print { color-scheme: light }`（§5.1）都靠它。
+   ⚠️ 想**藏掉**捲軸的既有寫法不受影響：`scrollbar-width: none` 與
+      `::-webkit-scrollbar { display: none }` 的特異度都高於這裡
+      （side-tool.css 的 .side-tools、color-palette 的 .detail-tabs、
+      ollama-chat 的輸入框皆已實測維持原樣）。 */
+:root {
+  scrollbar-color: var(--mz-scroll-thumb) var(--bg, var(--mz-bg));
+}
+
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: var(--bg, var(--mz-bg));
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--mz-scroll-thumb);
+  border: 3px solid var(--bg, var(--mz-bg));
+  border-radius: 8px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--mz-scroll-thumb-hover);
 }
 
 body,
