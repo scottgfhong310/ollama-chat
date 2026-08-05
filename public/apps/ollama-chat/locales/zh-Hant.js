@@ -44,6 +44,7 @@ I18n.register('zh-Hant', {
   'tool.delete': '刪除此對話',
   'tool.mode': '切換 light / dark',
   'tool.lang': '語言',
+  'tool.more': '更多工具',
   'tool.copyCode': '複製程式碼',
   'tool.clearInput': '清除輸入',
   'tool.subjActions': '更多動作（改名／刪除）',

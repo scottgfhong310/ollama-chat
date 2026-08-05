@@ -44,6 +44,7 @@ I18n.register('en', {
   'tool.delete': 'Delete this conversation',
   'tool.mode': 'Toggle light / dark',
   'tool.lang': 'Language',
+  'tool.more': 'More tools',
   'tool.copyCode': 'Copy code',
   'tool.clearInput': 'Clear input',
   'tool.subjActions': 'More actions (rename / delete)',

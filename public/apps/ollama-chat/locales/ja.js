@@ -44,6 +44,7 @@ I18n.register('ja', {
   'tool.delete': 'この会話を削除',
   'tool.mode': 'ライト / ダーク切替',
   'tool.lang': '言語',
+  'tool.more': 'その他のツール',
   'tool.copyCode': 'コードをコピー',
   'tool.clearInput': '入力をクリア',
   'tool.subjActions': 'その他の操作（名前変更／削除）',
