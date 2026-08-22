@@ -102,18 +102,21 @@ body.sidenav-open .side-tools {
  * ⚠️ 刻意**不**寫成 var(--danger, …)：家族已有 app 拿 `--danger` 當自己的警示色、
  * 而且值不同（`circle-text` 淺色是 #c1121f）。讀它會讓共用件的顏色被某一支 app 的
  * 私有決定牽著走，而那不會有任何東西報錯。
- * ⚠️ 涵蓋範圍就是下面這兩個 id：`#setting-clear-page`（markdown-reader 的「清除頁面內容」）
- * **沒有**被涵蓋、至今不轉紅——上面括號裡的「清除頁面」講的是某些 app 拿 `#setting-clear`
- * 當清除鍵的那種用法（見 example/side-tools 的正統對照表）。要不要一併收由 owner 決定。 */
+ * ⚠️ 涵蓋三個 id。`#setting-clear-page` 是 2026-08-22 補進來的〔owner 指示〕——在那之前
+ * 註解寫著「清除頁面」而選擇器裡沒有它，於是 markdown-reader 的「清除頁面內容」從來不轉紅
+ * （唯一一支有這個 id 的 app）。同一顆鍵在別的 app 叫 `#setting-clear`，早就是紅的；
+ * 兩個名字做同一件事而只有一個有警示，那個差別沒有任何理由。 */
 #setting-clear:hover,
-#setting-clear-downloads:hover {
+#setting-clear-downloads:hover,
+#setting-clear-page:hover {
   color: #ff6e6e;
 }
 
 /* 特異性 (1,2,0) > 上面的 (1,1,0)，順序也在後面 ⇒ 淺色一定贏。
  * 沒有 data-theme 的頁面（少數孵化器原型）不會命中這條，維持深色那個值。 */
 [data-theme="light"] #setting-clear:hover,
-[data-theme="light"] #setting-clear-downloads:hover {
+[data-theme="light"] #setting-clear-downloads:hover,
+[data-theme="light"] #setting-clear-page:hover {
   color: #d93636;
 }
 
