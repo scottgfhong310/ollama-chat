@@ -24,8 +24,16 @@
   --mz-primary-hover: #2bbbad;
   --mz-primary-text: #ffffff;
 
-  --mz-link: #4db6ac;
-  --mz-focus: #80cbc4;
+  /* ⚠️ 淺色的這兩個值 2026-09-07 調過，而原因是它們一直是**深色的 teal 留在淺色區塊裡**：
+     舊值 --mz-link #4db6ac 在白底上只有 **2.44**、--mz-focus #80cbc4 只有 **1.87**
+     ——連非文字的 3:1 都過不了，而它們用在 6＋8 條規則上（a／card-action／collection／
+     tabs／.btn-flat／datepicker，以及它們各自的 :hover／.active 與輸入框 focus 底線）。
+     ⚠️⚠️ **兩個必須一起調**：--mz-focus 是 --mz-link 的 hover 配對，只調前者會讓
+     「滑過去反而更看不見」（5.32 → 1.87）——那比原本更難察覺。
+     值取自家族既有的淺色 teal（--sg-tag 的 #00796b／--chip-on-bg 的 #00695c），不另挑；
+     hover 比靜止更深，方向也對。**深色的兩組一個字都沒動**（#80cbc4 on #1e1e1e ＝ 8.94）。 */
+  --mz-link: #00796b;
+  --mz-focus: #00695c;
 
   --mz-error: #ef5350;
   --mz-warning: #ffca28;
