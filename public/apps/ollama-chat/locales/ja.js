@@ -71,7 +71,7 @@ I18n.register('ja', {
   'toast.renameExists': '移動先が既に存在します：{n}——別の名前にしてください',
   'toast.renameFail': '名前変更に失敗しました：{m}',
   'toast.deleted': '削除しました：{n}（.bak にバックアップ済み）',
-  'toast.deleteFail': '削除に失敗しました：{m}',
+  'toast.deleteFail': '削除に失敗：{m}',
   'toast.projCreated': 'project を作成しました：{n}',
   'toast.projRenamed': 'project 名を変更しました：{n}',
   'toast.projDeleted': 'project を削除しました：{n}（.bak にバックアップ済み）',
