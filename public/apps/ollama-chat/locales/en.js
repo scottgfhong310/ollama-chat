@@ -60,7 +60,7 @@ I18n.register('en', {
   'toast.copyFail': 'Copy failed (requires localhost or HTTPS)',
   'toast.created': 'Created: {n}',
   'toast.saveFail': 'Save failed: {m}',
-  'toast.loadFail': 'Load failed: {n} ({m})',
+  'toast.loadFail': 'Failed to load: {n} ({m})',
   'toast.treeFail': 'Failed to read library: {m}',
   'toast.modelsFail': 'Failed to list models: {m} — is Ollama running?',
   'toast.endpointSwitched': 'Ollama endpoint switched',
