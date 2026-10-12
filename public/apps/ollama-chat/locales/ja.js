@@ -57,7 +57,7 @@ I18n.register('ja', {
   'proj.actions': 'その他の操作（名前変更／削除）',
   'toast.lang': '{name} に切り替えました',
   'toast.copied': 'コードをコピーしました',
-  'toast.copyFail': 'コピーに失敗しました（localhost または HTTPS が必要）',
+  'toast.copyFail': 'コピーに失敗しました',
   'toast.created': '作成しました：{n}',
   'toast.saveFail': '保存に失敗：{m}',
   'toast.loadFail': '読み込み失敗：{n}（{m}）',

@@ -57,7 +57,7 @@ I18n.register('zh-Hant', {
   'proj.actions': '更多動作（改名／刪除）',
   'toast.lang': '已切換為 {name}',
   'toast.copied': '已複製程式碼',
-  'toast.copyFail': '複製失敗（需要 localhost 或 HTTPS）',
+  'toast.copyFail': '複製失敗',
   'toast.created': '已建立：{n}',
   'toast.saveFail': '存檔失敗：{m}',
   'toast.loadFail': '載入失敗：{n}（{m}）',

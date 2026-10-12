@@ -57,7 +57,7 @@ I18n.register('en', {
   'proj.actions': 'More actions (rename / delete)',
   'toast.lang': 'Switched to {name}',
   'toast.copied': 'Code copied',
-  'toast.copyFail': 'Copy failed (requires localhost or HTTPS)',
+  'toast.copyFail': 'Copy failed',
   'toast.created': 'Created: {n}',
   'toast.saveFail': 'Save failed: {m}',
   'toast.loadFail': 'Failed to load: {n} ({m})',
