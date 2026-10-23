@@ -93,6 +93,35 @@
     return DOMPurify.sanitize(marked.parse(String(text || '')));
   }
 
+  /* 複製：先試 clipboard API，不存在或被拒絕才退回 execCommand（DESIGN_GUIDELINES「複製鈕的 clipboard 退路」）。
+     ⚠️ 非 HTTPS／非 localhost（例如 http://192.168.0.x:3001）navigator.clipboard 是 undefined——
+     直接呼叫 writeText 會丟 TypeError，畫面上什麼都不會發生（沒有 toast、也沒有複製）。
+     暫用的 textarea 設 readonly（iOS 才不會彈鍵盤），並掛在焦點所在的 modal 裡
+     （Materialize 的 modal 會把跑到它外面的焦點搶回去，掛在 body 上就選不住）。 */
+  function execCommandCopy(text) {
+    var a = document.activeElement;
+    var host = (a && a.closest && a.closest('.modal')) || document.body;
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.top = '0';
+    ta.style.left = '0';
+    ta.style.opacity = '0';
+    host.appendChild(ta);
+    ta.select();
+    var ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    host.removeChild(ta);
+    return ok ? Promise.resolve() : Promise.reject(new Error('copy failed'));
+  }
+  function writeClipboard(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(text).catch(function () { return execCommandCopy(text); });
+    }
+    return execCommandCopy(text);
+  }
+
   /* ---------- 程式碼區塊複製鈕（比照家族 §4.5；冪等） ---------- */
 
   function addCopyButtons(container) {
@@ -110,7 +139,7 @@
       btn.addEventListener('click', function () {
         var code = pre.querySelector('code');
         var text = code ? code.textContent : pre.textContent;
-        navigator.clipboard.writeText(text).then(function () {
+        writeClipboard(text).then(function () {
           btn.classList.add('copied');
           btn.querySelector('i').textContent = 'check';
           setTimeout(function () {
